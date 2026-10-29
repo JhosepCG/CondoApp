@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: CondoApp-v0.2.0/CondoApp
+        working-directory: CondoApp-v0.2.0/CondoApp-v0.2.0/CondoApp
     steps:
       - uses: actions/checkout@v4
 
@@ -30,17 +30,17 @@ jobs:
         run: gradle assembleDebug --no-daemon
 
       - name: Renombrar APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk CondoApp.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk Convive.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: CondoApp-apk
-          path: CondoApp-v0.2.0/CondoApp/CondoApp.apk
+          name: Convive-apk
+          path: CondoApp-v0.2.0/CondoApp-v0.2.0/CondoApp/Convive.apk
 
       - name: Publicar APK en Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_number }}
-          name: CondoApp · compilación ${{ github.run_number }}
-          files: CondoApp-v0.2.0/CondoApp/CondoApp.apk
+          name: Convive · compilación ${{ github.run_number }}
+          files: CondoApp-v0.2.0/CondoApp-v0.2.0/CondoApp/Convive.apk
           make_latest: true
