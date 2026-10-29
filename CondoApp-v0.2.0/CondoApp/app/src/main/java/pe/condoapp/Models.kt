@@ -19,6 +19,7 @@ enum class Feature(val label: String, val ready: Boolean) {
     COBROS("Cobros y fechas de pago", true),
     MORA("Recargo automático por mora", true),
     INCIDENCIAS("Reportes de servicios (internet, cable)", true),
+    MEDIDORES("Fotos del medidor de luz", true),
     AVISOS("Avisos del administrador", true),
     EMERGENCIA("Botón de emergencia", true),
     AREAS_COMUNES("Áreas comunes y reservas", false),
@@ -106,6 +107,30 @@ data class Emergency(
     val createdAt: String
 )
 
+/** Pedido del administrador: los inquilinos deben enviar la foto de su medidor hasta [due]. */
+data class MeterRequest(
+    val id: String,
+    val clientId: String,
+    val title: String,
+    val due: LocalDate,
+    val createdAt: String,
+    val open: Boolean = true
+)
+
+/** Foto del medidor enviada por un inquilino (la imagen se guarda en el teléfono). */
+data class MeterReading(
+    val id: String,
+    val clientId: String,
+    val requestId: String?,
+    val userId: String,
+    val userName: String,
+    val unit: String,
+    val photoPath: String,
+    val reading: String,
+    val sentAt: String,
+    val reviewed: Boolean = false
+)
+
 val SERVICES = listOf("Internet", "Cable", "Agua", "Luz", "Otro")
-val NOTICE_CATEGORIES = listOf("Corte de agua", "Corte de luz", "Internet / cable", "Mantenimiento", "Seguridad", "Otro")
+val NOTICE_CATEGORIES = listOf("Corte de agua", "Corte de luz", "Medidor de luz", "Internet / cable", "Mantenimiento", "Seguridad", "Otro")
 val EMERGENCY_TYPES = listOf("Fuga de gas", "Incendio", "Robo", "Otra emergencia")

@@ -26,13 +26,15 @@ object Store {
     val incidents = mutableStateListOf<Incident>()
     val notices = mutableStateListOf<Notice>()
     val emergencies = mutableStateListOf<Emergency>()
+    val meterRequests = mutableStateListOf<MeterRequest>()
+    val meterReadings = mutableStateListOf<MeterReading>()
 
     var currentUser by mutableStateOf<AppUser?>(null)
         private set
 
     private var prefs: SharedPreferences? = null
     private var seq = 100
-    private const val DATA_VERSION = 2
+    private const val DATA_VERSION = 3
 
     fun init(context: Context) {
         if (prefs != null) return
@@ -59,7 +61,7 @@ object Store {
 
     fun defaultsFor(t: Template): Set<Feature> = when (t) {
         Template.CONDOMINIO -> Feature.values().toSet()
-        Template.CASA_DEPAS -> setOf(Feature.COBROS, Feature.INCIDENCIAS, Feature.AVISOS, Feature.EMERGENCIA)
+        Template.CASA_DEPAS -> setOf(Feature.COBROS, Feature.INCIDENCIAS, Feature.MEDIDORES, Feature.AVISOS, Feature.EMERGENCIA)
     }
 
     fun isOverdue(c: Charge): Boolean = !c.paid && LocalDate.now().isAfter(c.due)
@@ -177,6 +179,8 @@ object Store {
         incidents.removeAll { it.clientId == id }
         notices.removeAll { it.clientId == id }
         emergencies.removeAll { it.clientId == id }
+        meterRequests.removeAll { it.clientId == id }
+        meterReadings.removeAll { it.clientId == id }
         save()
     }
 
@@ -248,6 +252,68 @@ object Store {
         }
     }
 
+    // ---------------- Medidores de luz ----------------
+    private val dayFmt: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+
+    /** El pedido abierto más reciente del cliente (o null si no hay). */
+    fun activeMeterRequest(clientId: String): MeterRequest? =
+        meterRequests.lastOrNull { it.clientId == clientId && it.open }
+
+    fun readingFor(requestId: String, userId: String): MeterReading? =
+        meterReadings.lastOrNull { it.requestId == requestId && it.userId == userId }
+
+    /** El administrador pide las fotos con fecha límite; los inquilinos reciben un aviso urgente. */
+    fun addMeterRequest(clientId: String, title: String, due: LocalDate) {
+        for (i in meterRequests.indices) {
+            val r = meterRequests[i]
+            if (r.clientId == clientId && r.open) meterRequests[i] = r.copy(open = false)
+        }
+        meterRequests.add(MeterRequest(nextId(), clientId, title.trim(), due, now()))
+        notices.add(
+            Notice(
+                nextId(), clientId, "Medidor de luz", "Envía la foto de tu medidor de luz",
+                "Tienes plazo hasta el ${due.format(dayFmt)}. Entra a Medidor y toma la foto o súbela desde tu galería.",
+                true, now()
+            )
+        )
+        save()
+    }
+
+    fun remindMeterRequest(r: MeterRequest) {
+        notices.add(
+            Notice(
+                nextId(), r.clientId, "Medidor de luz", "Recordatorio: foto del medidor",
+                "Si aún no la enviaste, tienes hasta el ${r.due.format(dayFmt)}.",
+                true, now()
+            )
+        )
+        save()
+    }
+
+    fun closeMeterRequest(id: String) {
+        val i = meterRequests.indexOfFirst { it.id == id }
+        if (i >= 0) {
+            meterRequests[i] = meterRequests[i].copy(open = false)
+            save()
+        }
+    }
+
+    fun addMeterReading(user: AppUser, requestId: String?, photoPath: String, reading: String) {
+        val cid = user.clientId ?: return
+        meterReadings.add(
+            MeterReading(nextId(), cid, requestId, user.id, user.name, user.unit ?: "-", photoPath, reading.trim(), now())
+        )
+        save()
+    }
+
+    fun setReadingReviewed(id: String) {
+        val i = meterReadings.indexOfFirst { it.id == id }
+        if (i >= 0) {
+            meterReadings[i] = meterReadings[i].copy(reviewed = true)
+            save()
+        }
+    }
+
     fun resetDemo() {
         seed()
         save()
@@ -258,6 +324,7 @@ object Store {
     private fun seed() {
         clients.clear(); users.clear(); units.clear(); charges.clear()
         incidents.clear(); notices.clear(); emergencies.clear()
+        meterRequests.clear(); meterReadings.clear()
         seq = 100
 
         clients.addAll(
@@ -300,6 +367,9 @@ object Store {
                 Notice("n2", "c1", "Mantenimiento", "Fumigación de áreas comunes", "El sábado desde las 8:00. Mantén a tus mascotas dentro.", false, now())
             )
         )
+        val month = today.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("es", "PE"))
+        addMeterRequest("c1", "Medidor de luz · $month", today.plusDays(5))
+        addMeterRequest("c2", "Medidor de luz · $month", today.plusDays(3))
     }
 
     // ---------------- Guardado local (JSON) ----------------
@@ -389,6 +459,26 @@ object Store {
         }
         o.put("emergencies", ea)
 
+        val mra = JSONArray()
+        meterRequests.forEach { r ->
+            val j = JSONObject()
+            j.put("id", r.id); j.put("clientId", r.clientId); j.put("title", r.title)
+            j.put("due", r.due.toString()); j.put("createdAt", r.createdAt); j.put("open", r.open)
+            mra.put(j)
+        }
+        o.put("meterRequests", mra)
+
+        val mla = JSONArray()
+        meterReadings.forEach { m ->
+            val j = JSONObject()
+            j.put("id", m.id); j.put("clientId", m.clientId); j.putNullable("requestId", m.requestId)
+            j.put("userId", m.userId); j.put("userName", m.userName); j.put("unit", m.unit)
+            j.put("photoPath", m.photoPath); j.put("reading", m.reading); j.put("sentAt", m.sentAt)
+            j.put("reviewed", m.reviewed)
+            mla.put(j)
+        }
+        o.put("meterReadings", mla)
+
         p.edit().putString("data", o.toString()).apply()
     }
 
@@ -452,6 +542,26 @@ object Store {
                 j.getString("createdAt")
             )
         }
+        val mr = (o.optJSONArray("meterRequests") ?: JSONArray()).objects().map { j ->
+            MeterRequest(
+                j.getString("id"), j.getString("clientId"), j.getString("title"),
+                LocalDate.parse(j.getString("due")), j.getString("createdAt"), j.getBoolean("open")
+            )
+        }
+        val ml = (o.optJSONArray("meterReadings") ?: JSONArray()).objects().map { j ->
+            MeterReading(
+                id = j.getString("id"),
+                clientId = j.getString("clientId"),
+                requestId = j.str("requestId"),
+                userId = j.getString("userId"),
+                userName = j.getString("userName"),
+                unit = j.getString("unit"),
+                photoPath = j.getString("photoPath"),
+                reading = j.optString("reading"),
+                sentAt = j.getString("sentAt"),
+                reviewed = j.optBoolean("reviewed")
+            )
+        }
 
         clients.clear(); clients.addAll(cl)
         users.clear(); users.addAll(us)
@@ -460,6 +570,8 @@ object Store {
         incidents.clear(); incidents.addAll(inc)
         notices.clear(); notices.addAll(no)
         emergencies.clear(); emergencies.addAll(em)
+        meterRequests.clear(); meterRequests.addAll(mr)
+        meterReadings.clear(); meterReadings.addAll(ml)
         seq = o.getInt("seq")
         true
     } catch (e: Exception) {

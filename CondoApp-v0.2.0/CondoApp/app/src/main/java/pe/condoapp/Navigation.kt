@@ -23,23 +23,32 @@ enum class Tab(val label: String, val icon: ImageVector) {
     SERVICIOS("Servicios", Icons.Rounded.Build),
     AVISOS("Avisos", Icons.Rounded.Campaign),
     PERSONAS("Personas", Icons.Rounded.Groups),
-    INICIO("Inicio", Icons.Rounded.Home)
+    INICIO("Inicio", Icons.Rounded.Home),
+    MEDIDOR("Medidor", Icons.Rounded.Bolt),
+    MEDIDORES("Medidores", Icons.Rounded.Bolt)
 }
 
+/** Pestañas de la barra inferior (máximo 5). */
 fun tabsFor(user: AppUser): List<Tab> {
     val c = Store.clientOf(user)
     fun on(f: Feature): Boolean = c != null && f in c.modules
     return when (user.role) {
         Role.SUPER_ADMIN -> listOf(Tab.RESUMEN, Tab.CLIENTES, Tab.CUENTAS)
-        Role.ADMIN -> buildList {
-            add(Tab.PANEL)
-            if (on(Feature.COBROS)) add(Tab.COBROS)
-            if (on(Feature.INCIDENCIAS)) add(Tab.SERVICIOS)
-            if (on(Feature.AVISOS)) add(Tab.AVISOS)
-            add(Tab.PERSONAS)
+        Role.ADMIN -> {
+            val list = buildList {
+                add(Tab.PANEL)
+                if (on(Feature.COBROS)) add(Tab.COBROS)
+                if (on(Feature.MEDIDORES)) add(Tab.MEDIDORES)
+                if (on(Feature.INCIDENCIAS)) add(Tab.SERVICIOS)
+                if (on(Feature.AVISOS)) add(Tab.AVISOS)
+                add(Tab.PERSONAS)
+            }
+            // Con más de 5 pestañas, "Personas" se abre desde el Panel.
+            if (list.size > 5) list - Tab.PERSONAS else list
         }
         Role.TENANT -> buildList {
             add(Tab.INICIO)
+            if (on(Feature.MEDIDORES)) add(Tab.MEDIDOR)
             if (on(Feature.INCIDENCIAS)) add(Tab.SERVICIOS)
             if (on(Feature.AVISOS)) add(Tab.AVISOS)
         }
@@ -56,7 +65,9 @@ fun AppRoot() {
 private fun MainScaffold(user: AppUser) {
     val tabs = tabsFor(user)
     var tab by remember(user.id) { mutableStateOf(tabs.first()) }
-    val current = if (tab in tabs) tab else tabs.first()
+    val personasHidden = user.role == Role.ADMIN && Tab.PERSONAS !in tabs
+    val current = if (tab in tabs || (tab == Tab.PERSONAS && personasHidden)) tab else tabs.first()
+    val go: (Tab) -> Unit = { tab = it }
     val client = Store.clientOf(user)
     val pendingAlerts = if (user.role == Role.ADMIN && client != null) {
         Store.emergencies.count { it.clientId == client.id && it.status == EmergencyStatus.PENDIENTE }
@@ -74,12 +85,14 @@ private fun MainScaffold(user: AppUser) {
                 Tab.RESUMEN -> SuperResumen(user)
                 Tab.CLIENTES -> SuperClientes()
                 Tab.CUENTAS -> SuperCuentas(user)
-                Tab.PANEL -> AdminPanel(user)
+                Tab.PANEL -> AdminPanel(user, go, personasHidden)
                 Tab.COBROS -> AdminCobros(user)
                 Tab.SERVICIOS -> if (user.role == Role.ADMIN) AdminServicios(user) else TenantServicios(user)
                 Tab.AVISOS -> if (user.role == Role.ADMIN) AdminAvisos(user) else TenantAvisos(user)
-                Tab.PERSONAS -> AdminPersonas(user)
-                Tab.INICIO -> TenantHome(user)
+                Tab.PERSONAS -> AdminPersonas(user, if (personasHidden) ({ go(Tab.PANEL) }) else null)
+                Tab.INICIO -> TenantHome(user, go)
+                Tab.MEDIDOR -> TenantMedidor(user)
+                Tab.MEDIDORES -> AdminMedidores(user)
             }
         }
         LineDivider()

@@ -57,6 +57,7 @@ fun serviceIcon(s: String): ImageVector = when (s) {
 fun noticeIcon(category: String): ImageVector = when (category) {
     "Corte de agua" -> Icons.Rounded.Opacity
     "Corte de luz" -> Icons.Rounded.Bolt
+    "Medidor de luz" -> Icons.Rounded.Bolt
     "Internet / cable" -> Icons.Rounded.Wifi
     "Mantenimiento" -> Icons.Rounded.Build
     "Seguridad" -> Icons.Rounded.Security

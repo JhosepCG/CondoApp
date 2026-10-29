@@ -1,7 +1,14 @@
-# CondoApp v0.2.0
+# CondoApp v0.3.0
 
 App Android (Kotlin + Jetpack Compose) para condominios, edificios y casas que se alquilan por departamento.
 Una sola app con **3 roles**: Super Admin, Administrador e Inquilino.
+
+## Novedades de la v0.3.0
+
+- **Medidor de luz**: el inquilino toma la foto de su medidor (o la sube de su galería), puede anotar la lectura y la envía a la administración.
+- **Pedido con fecha límite**: el administrador pide las fotos con una fecha; a los inquilinos les llega un aviso urgente y un recordatorio en su Inicio.
+- El administrador ve quién envió, quién falta o está vencido, abre cada foto y la marca como revisada.
+- El Super Admin puede activar o desactivar "Fotos del medidor de luz" por cliente.
 
 ## Novedades de la v0.2.0
 

@@ -16,14 +16,17 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 
 // ------------------------------------------------------------------
 // INQUILINO · Inicio
 // ------------------------------------------------------------------
 
 @Composable
-fun TenantHome(user: AppUser) {
+fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
     val c = Store.clientOf(user) ?: return
+    val meterReq = if (Feature.MEDIDORES in c.modules) Store.activeMeterRequest(c.id) else null
+    val meterPending = meterReq != null && Store.readingFor(meterReq.id, user.id) == null
     var showDialog by remember { mutableStateOf(false) }
     var sent by remember { mutableStateOf<String?>(null) }
 
@@ -67,6 +70,34 @@ fun TenantHome(user: AppUser) {
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 HeroInfo("Responsable", responsible ?: "-", Modifier.weight(1f))
                 HeroInfo("Administración", admin?.name ?: "-", Modifier.weight(1f))
+            }
+        }
+
+        if (meterPending && meterReq != null) {
+            val late = LocalDate.now().isAfter(meterReq.due)
+            AppCard(
+                color = if (late) Palette.RedSoft else Palette.AmberSoft,
+                borderColor = if (late) Palette.RedSoft else Palette.AmberSoft
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconBadge(Icons.Rounded.Bolt, if (late) Palette.Red else Palette.AmberDark, Palette.Surface)
+                    Column(Modifier.weight(1f)) {
+                        Text("Envía la foto de tu medidor", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (late) "Venció el ${meterReq.due.format(dateFmt)}"
+                            else "Tienes hasta el ${meterReq.due.format(dateFmt)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (late) Palette.Red else Palette.AmberDark
+                        )
+                    }
+                }
+                PrimaryButton(
+                    "Enviar foto",
+                    { go(Tab.MEDIDOR) },
+                    Modifier.fillMaxWidth(),
+                    color = Palette.Navy,
+                    icon = Icons.Rounded.PhotoCamera
+                )
             }
         }
 

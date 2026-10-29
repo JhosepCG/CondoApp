@@ -16,8 +16,9 @@ import androidx.compose.ui.unit.dp
 // ------------------------------------------------------------------
 
 @Composable
-fun AdminPanel(user: AppUser) {
+fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) {
     val c = Store.clientOf(user) ?: return
+    val meterReq = if (Feature.MEDIDORES in c.modules) Store.activeMeterRequest(c.id) else null
     val list = Store.emergencies.filter { it.clientId == c.id }.reversed()
     val pending = list.filter { it.status == EmergencyStatus.PENDIENTE }
     val active = list.filter { it.status == EmergencyStatus.CONFIRMADA }
@@ -80,6 +81,34 @@ fun AdminPanel(user: AppUser) {
                 StatCard("Reportes abiertos", "$openInc", Icons.Rounded.Build, Palette.AmberDark, Palette.AmberSoft, Modifier.weight(1f))
             }
             StatCard("Inquilinos", "${Store.tenantsOf(c.id).size}", Icons.Rounded.Groups, Palette.Teal, Palette.TealSoft, Modifier.weight(1f))
+        }
+
+        if (meterReq != null) {
+            val tenants = Store.tenantsOf(c.id)
+            val sentCount = tenants.count { t -> Store.readingFor(meterReq.id, t.id) != null }
+            AppCard(onClick = { go(Tab.MEDIDORES) }) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconBadge(Icons.Rounded.Bolt, Palette.AmberDark, Palette.AmberSoft)
+                    Column(Modifier.weight(1f)) {
+                        Text(meterReq.title, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "$sentCount de ${tenants.size} fotos · hasta el ${meterReq.due.format(dateFmt)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.Muted
+                        )
+                    }
+                    Pill("Ver", Palette.Teal, Palette.TealSoft)
+                }
+            }
+        }
+
+        if (showPersonasShortcut) {
+            SecondaryButton(
+                "Personas y cuentas",
+                { go(Tab.PERSONAS) },
+                Modifier.fillMaxWidth(),
+                icon = Icons.Rounded.Groups
+            )
         }
 
         if (Feature.AVISOS in c.modules && lastNotices.isNotEmpty()) {
@@ -297,13 +326,18 @@ fun AdminAvisos(user: AppUser) {
 // ------------------------------------------------------------------
 
 @Composable
-fun AdminPersonas(user: AppUser) {
+fun AdminPersonas(user: AppUser, onBack: (() -> Unit)? = null) {
     val c = Store.clientOf(user) ?: return
     var showForm by remember { mutableStateOf(false) }
     val admins = Store.adminsOf(c.id)
     val tenants = Store.tenantsOf(c.id)
 
     ScreenColumn {
+        if (onBack != null) {
+            TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) {
+                Text("‹ Volver al panel", color = Palette.Teal, style = MaterialTheme.typography.labelLarge)
+            }
+        }
         SectionTitle("Personas", trailing = "${admins.size + tenants.size} cuentas")
         if (!showForm) {
             PrimaryButton("Agregar persona", { showForm = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PersonAdd)
