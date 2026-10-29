@@ -37,7 +37,7 @@ jobs:
           name: CondoApp-apk
           path: CondoApp/CondoApp.apk
 
-      - name: Publicar APK en Releases (descarga directa desde el celular)
+      - name: Publicar APK en Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_number }}
