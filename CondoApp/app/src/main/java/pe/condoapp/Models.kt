@@ -5,8 +5,7 @@ import java.time.LocalDate
 enum class Role(val label: String) {
     SUPER_ADMIN("Super Admin"),
     ADMIN("Administrador"),
-    OWNER("Propietario"),
-    TENANT("Inquilino")
+    USER("Inquilino")
 }
 
 enum class Template(val label: String) {
@@ -55,7 +54,9 @@ data class AppUser(
     val name: String,
     val role: Role,
     val clientId: String?,
-    val unit: String?
+    val unit: String?,
+    val username: String = "",
+    val password: String = ""
 )
 
 data class UnitInfo(val clientId: String, val unit: String, val responsible: String)

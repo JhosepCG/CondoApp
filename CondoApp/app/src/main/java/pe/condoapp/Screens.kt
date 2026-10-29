@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -74,12 +76,13 @@ private fun H(text: String) {
 private fun CardBox(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Card(
         modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
             content = content
         )
     }
@@ -98,6 +101,25 @@ private fun Choice(options: List<String>, selected: String, onSelect: (String) -
     }
 }
 
+@Composable
+private fun Pill(text: String, color: Color) {
+    Box(
+        Modifier
+            .background(color.copy(alpha = 0.14f), RoundedCornerShape(50))
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) { Text(text, color = color, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+}
+
+@Composable
+private fun Field(value: String, onChange: (String) -> Unit, label: String, password: Boolean = false) {
+    OutlinedTextField(
+        value = value, onValueChange = onChange, label = { Text(label) },
+        singleLine = true, shape = RoundedCornerShape(12.dp),
+        visualTransformation = if (password) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
 // ------------------------------------------------------------------
 // Raíz, login y navegación
 // ------------------------------------------------------------------
@@ -110,18 +132,61 @@ fun AppRoot() {
 
 @Composable
 private fun LoginScreen() {
-    Column(Modifier.fillMaxSize().systemBarsPadding().background(MaterialTheme.colorScheme.background)) {
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+    var showDemo by remember { mutableStateOf(true) }
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primary)
+                .systemBarsPadding().padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Spacer(Modifier.height(12.dp))
+            Text("🏢 CondoApp", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Tu condominio, en tu bolsillo", color = Color.White.copy(alpha = 0.85f))
+            Spacer(Modifier.height(8.dp))
+        }
         Screen {
-            Spacer(Modifier.height(16.dp))
-            Text("CondoApp", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-            Text("Modo demostración: elige una cuenta para probar cada rol. Los datos viven solo en el teléfono y se reinician al cerrar la app.")
-            Store.users.forEach { u ->
-                CardBox(Modifier.clickable { Store.currentUser = u }) {
-                    Text(u.name, fontWeight = FontWeight.Bold)
-                    val cl = Store.client(u.clientId)
-                    Text(u.role.label + (if (cl != null) " · " + cl.name else ""))
+            CardBox {
+                Text("Iniciar sesión", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Field(username, { username = it; error = false }, "Usuario")
+                Field(password, { password = it; error = false }, "Contraseña", password = true)
+                if (error) Text("Usuario o contraseña incorrectos (o el cliente está inactivo).", color = RED, fontSize = 13.sp)
+                Button(
+                    onClick = {
+                        val u = Store.login(username, password)
+                        if (u == null) error = true else Store.currentUser = u
+                    },
+                    enabled = username.isNotBlank() && password.isNotBlank(),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(52.dp)
+                ) { Text("Entrar", fontSize = 16.sp) }
+            }
+            CardBox {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Cuentas de prueba", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { showDemo = !showDemo }) { Text(if (showDemo) "Ocultar" else "Ver") }
+                }
+                if (showDemo) {
+                    Text("Toca una cuenta para rellenar los datos.", fontSize = 12.sp)
+                    Store.users.filter { it.username.isNotBlank() }.forEach { u ->
+                        Column(
+                            Modifier.fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.background, RoundedCornerShape(12.dp))
+                                .clickable { username = u.username; password = u.password; error = false }
+                                .padding(12.dp)
+                        ) {
+                            Text(u.role.label + " · " + u.name, fontWeight = FontWeight.Bold)
+                            Text("usuario: ${u.username}   contraseña: ${u.password}", fontSize = 13.sp)
+                        }
+                    }
                 }
             }
+            Text(
+                "Modo demostración: los datos viven solo en el teléfono y se reinician al cerrar la app.",
+                fontSize = 12.sp
+            )
         }
     }
 }
@@ -129,11 +194,12 @@ private fun LoginScreen() {
 private enum class Tab(val label: String, val icon: String) {
     RESUMEN("Resumen", "📊"),
     CLIENTES("Clientes", "🏢"),
+    CUENTAS("Cuentas", "🔑"),
     PANEL("Panel", "🚨"),
     COBROS("Cobros", "💳"),
     INCIDENCIAS("Servicios", "🛠"),
     AVISOS("Avisos", "📣"),
-    RESIDENTES("Residentes", "👥"),
+    RESIDENTES("Cuentas", "👥"),
     INICIO("Inicio", "🏠")
 }
 
@@ -141,7 +207,7 @@ private fun tabsFor(user: AppUser): List<Tab> {
     val c = Store.clientOf(user)
     fun on(f: Feature): Boolean = c != null && f in c.modules
     return when (user.role) {
-        Role.SUPER_ADMIN -> listOf(Tab.RESUMEN, Tab.CLIENTES)
+        Role.SUPER_ADMIN -> listOf(Tab.RESUMEN, Tab.CLIENTES, Tab.CUENTAS)
         Role.ADMIN -> buildList {
             add(Tab.PANEL)
             if (on(Feature.COBROS)) add(Tab.COBROS)
@@ -170,20 +236,22 @@ private fun MainScaffold(user: AppUser) {
             .background(MaterialTheme.colorScheme.background)
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primary)
+                .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Text(user.name, fontWeight = FontWeight.Bold)
+                Text(user.name, fontWeight = FontWeight.Bold, color = Color.White)
                 val cl = Store.clientOf(user)
-                Text(user.role.label + (if (cl != null) " · " + cl.name else ""), fontSize = 12.sp)
+                Text(user.role.label + (if (cl != null) " · " + cl.name else ""), fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
             }
-            TextButton(onClick = { Store.currentUser = null }) { Text("Salir") }
+            TextButton(onClick = { Store.currentUser = null }) { Text("Salir", color = Color.White) }
         }
         Box(Modifier.weight(1f)) {
             when (current) {
                 Tab.RESUMEN -> SuperResumen()
                 Tab.CLIENTES -> SuperClientes()
+                Tab.CUENTAS -> SuperCuentas()
                 Tab.PANEL -> AdminPanel(user)
                 Tab.COBROS -> AdminCobros(user)
                 Tab.INCIDENCIAS ->
@@ -219,7 +287,7 @@ private fun SuperResumen() {
         CardBox {
             Text("Clientes activos: ${active.size} de ${Store.clients.size}")
             Text("Ingreso mensual: ${money(active.sumOf { it.monthlyFee })}", fontWeight = FontWeight.Bold)
-            Text("Usuarios registrados: ${Store.users.count { it.role != Role.SUPER_ADMIN }}")
+            Text("Inquilinos registrados: ${Store.users.count { it.role != Role.SUPER_ADMIN }}")
         }
         Store.clients.forEach { c ->
             val us = Store.users.filter { it.clientId == c.id }
@@ -228,8 +296,7 @@ private fun SuperResumen() {
                 Text(c.template.label + (if (c.active) "" else " · INACTIVO"))
                 Text(
                     "Administradores: ${us.count { it.role == Role.ADMIN }} · " +
-                        "Propietarios: ${us.count { it.role == Role.OWNER }} · " +
-                        "Inquilinos: ${us.count { it.role == Role.TENANT }}"
+                        "Inquilinos: ${us.count { it.role == Role.USER }}"
                 )
                 Text("Mensualidad: ${money(c.monthlyFee)}")
             }
@@ -356,7 +423,7 @@ private fun AdminPanel(user: AppUser) {
             Text("Resumen", fontWeight = FontWeight.Bold)
             if (Feature.INCIDENCIAS in c.modules) Text("Reportes de servicios abiertos: $openInc")
             if (Feature.COBROS in c.modules) Text("Cobros vencidos: $overdue")
-            Text("Residentes: ${Store.users.count { it.clientId == c.id && it.role != Role.ADMIN }}")
+            Text("Inquilinos: ${Store.users.count { it.clientId == c.id && it.role == Role.USER }}")
         }
     }
 }
@@ -373,9 +440,9 @@ private fun AdminCobros(user: AppUser) {
                 Text("${ch.unit} · ${ch.concept}", fontWeight = FontWeight.Bold)
                 Text("Vence: ${ch.due.format(dateFmt)} · ${money(Store.amountDue(ch))}")
                 if (ch.paid) {
-                    Text("✅ Pagado", color = GREEN)
+                    Pill("Pagado", GREEN)
                 } else {
-                    if (Store.isOverdue(ch)) Text("⛔ Vencido", color = RED) else Text("⏳ Pendiente")
+                    if (Store.isOverdue(ch)) Pill("Vencido", RED) else Pill("Pendiente", Color(0xFFB26A00))
                     Button(onClick = { Store.markPaid(ch.id) }) { Text("Marcar como pagado") }
                 }
             }
@@ -465,46 +532,105 @@ private fun AdminAvisos(user: AppUser) {
 }
 
 @Composable
-private fun AdminResidentes(user: AppUser) {
-    val c = Store.clientOf(user) ?: return
+private fun AccountForm(fixedClient: Client?) {
     var name by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var unit by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    var roleLabel by remember { mutableStateOf(Role.OWNER.label) }
-    val people = Store.users.filter { it.clientId == c.id && it.role != Role.ADMIN }
-    val concept = if (c.template == Template.CONDOMINIO) "cuota mensual" else "renta mensual"
-    Screen {
-        H("Agregar residente")
-        CardBox {
-            Choice(listOf(Role.OWNER.label, Role.TENANT.label), roleLabel) { roleLabel = it }
-            OutlinedTextField(
-                value = name, onValueChange = { name = it }, label = { Text("Nombre") },
-                singleLine = true, modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = unit, onValueChange = { unit = it }, label = { Text("Departamento / casa") },
-                singleLine = true, modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = amount, onValueChange = { amount = it }, label = { Text("Monto de la $concept (S/)") },
-                singleLine = true, modifier = Modifier.fillMaxWidth()
-            )
-            Button(
-                onClick = {
-                    val role = if (roleLabel == Role.OWNER.label) Role.OWNER else Role.TENANT
-                    Store.addResident(c, name.trim(), role, unit.trim(), amount.toDoubleOrNull() ?: 0.0)
-                    name = ""; unit = ""; amount = ""
-                },
-                enabled = name.isNotBlank() && unit.isNotBlank() && amount.toDoubleOrNull() != null
-            ) { Text("Agregar") }
+    var roleLabel by remember { mutableStateOf(Role.USER.label) }
+    var clientName by remember { mutableStateOf(Store.clients.firstOrNull()?.name ?: "") }
+    var msg by remember { mutableStateOf<String?>(null) }
+
+    val client = fixedClient ?: Store.clients.firstOrNull { it.name == clientName }
+    val isAdmin = roleLabel == Role.ADMIN.label
+    val concept = if (client?.template == Template.CASA_DEPAS) "renta mensual" else "cuota mensual"
+    val taken = username.isNotBlank() && Store.usernameTaken(username)
+    val valid = name.isNotBlank() && username.isNotBlank() && !taken && password.length >= 4 && client != null &&
+        (isAdmin || (unit.isNotBlank() && amount.toDoubleOrNull() != null))
+
+    CardBox {
+        Text("Tipo de cuenta", fontWeight = FontWeight.Bold)
+        Choice(listOf(Role.ADMIN.label, Role.USER.label), roleLabel) { roleLabel = it }
+        if (fixedClient == null) {
+            Text("Cliente", fontWeight = FontWeight.Bold)
+            Choice(Store.clients.map { it.name }, clientName) { clientName = it }
         }
-        H("Residentes (${people.size})")
-        people.forEach { p ->
-            CardBox {
+        Field(name, { name = it }, "Nombre completo")
+        Field(username, { username = it; msg = null }, "Usuario (para iniciar sesión)")
+        if (taken) Text("Ese usuario ya existe.", color = RED, fontSize = 12.sp)
+        Field(password, { password = it }, "Contraseña (mínimo 4)")
+        if (!isAdmin) {
+            Field(unit, { unit = it }, "Departamento / casa")
+            Field(amount, { amount = it }, "Monto de la $concept (S/)")
+        }
+        Button(
+            onClick = {
+                client?.let { cl ->
+                    Store.createAccount(
+                        name.trim(), username.trim(), password,
+                        if (isAdmin) Role.ADMIN else Role.USER, cl.id,
+                        if (isAdmin) null else unit.trim(), amount.toDoubleOrNull() ?: 0.0
+                    )
+                }
+                msg = "Cuenta creada: ${username.trim()}"
+                name = ""; username = ""; password = ""; unit = ""; amount = ""
+            },
+            enabled = valid,
+            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth().height(48.dp)
+        ) { Text("Crear cuenta") }
+        if (msg != null) Text(msg!!, color = GREEN)
+    }
+}
+
+@Composable
+private fun AccountRow(p: AppUser, canDelete: Boolean) {
+    var confirm by remember { mutableStateOf(false) }
+    CardBox {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
                 Text(p.name, fontWeight = FontWeight.Bold)
-                Text("${p.role.label} · ${p.unit ?: "-"}")
+                Text((Store.client(p.clientId)?.name ?: "-") + (if (p.unit != null) " · ${p.unit}" else ""), fontSize = 12.sp)
+                Text("usuario: ${p.username}   contraseña: ${p.password}", fontSize = 12.sp)
             }
+            Pill(p.role.label, if (p.role == Role.ADMIN) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary)
         }
+        if (canDelete) TextButton(onClick = { confirm = true }) { Text("Eliminar cuenta", color = RED) }
+    }
+    if (confirm) {
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            title = { Text("¿Eliminar a ${p.name}?") },
+            text = { Text("La cuenta dejará de poder iniciar sesión.") },
+            confirmButton = {
+                TextButton(onClick = { Store.deleteAccount(p.id); confirm = false }) { Text("Eliminar", color = RED) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancelar") } }
+        )
+    }
+}
+
+@Composable
+private fun SuperCuentas() {
+    val people = Store.users.filter { it.role != Role.SUPER_ADMIN }
+    Screen {
+        H("Crear cuenta")
+        AccountForm(null)
+        H("Cuentas (${people.size})")
+        people.toList().forEach { p -> key(p.id) { AccountRow(p, true) } }
+    }
+}
+
+@Composable
+private fun AdminResidentes(user: AppUser) {
+    val c = Store.clientOf(user) ?: return
+    val people = Store.users.filter { it.clientId == c.id }
+    Screen {
+        H("Crear cuenta")
+        AccountForm(c)
+        H("Cuentas (${people.size})")
+        people.toList().forEach { p -> key(p.id) { AccountRow(p, p.id != user.id) } }
     }
 }
 
@@ -552,12 +678,12 @@ private fun ResidentHome(user: AppUser) {
             CardBox {
                 Text("Próximo pago", fontWeight = FontWeight.Bold)
                 if (next == null) {
-                    Text("Estás al día ✅", color = GREEN)
+                    Pill("Estás al día", GREEN)
                 } else {
                     Text(next.concept)
                     Text("Vence: ${next.due.format(dateFmt)}")
                     Text(money(Store.amountDue(next)), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    if (Store.isOverdue(next)) Text("⛔ Pago vencido", color = RED)
+                    if (Store.isOverdue(next)) Pill("Pago vencido", RED)
                     if (Store.amountDue(next) > next.amount) {
                         Text("Incluye recargo por mora de ${c.lateFeePercent}%", fontSize = 12.sp)
                     }
@@ -569,7 +695,8 @@ private fun ResidentHome(user: AppUser) {
             Button(
                 onClick = { showDialog = true },
                 colors = ButtonDefaults.buttonColors(containerColor = RED),
-                modifier = Modifier.fillMaxWidth().height(64.dp)
+                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.fillMaxWidth().height(80.dp)
             ) { Text("🚨 BOTÓN DE EMERGENCIA", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
             if (sentMsg != null) Text(sentMsg!!, color = GREEN)
             mine.forEach { e -> Text("Tu alerta «${e.type}» espera la confirmación del administrador.") }

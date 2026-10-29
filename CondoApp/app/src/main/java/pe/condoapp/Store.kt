@@ -72,21 +72,43 @@ object Store {
         )
     }
 
+    // ---------- Cuentas ----------
+    fun login(username: String, password: String): AppUser? =
+        users.firstOrNull {
+            it.username.equals(username.trim(), ignoreCase = true) && it.password == password &&
+                (it.clientId == null || client(it.clientId)?.active != false)
+        }
+
+    fun usernameTaken(username: String): Boolean =
+        users.any { it.username.equals(username.trim(), ignoreCase = true) }
+
+    /** Crea una cuenta. Los usuarios con domicilio generan su cobro mensual. */
+    fun createAccount(
+        name: String, username: String, password: String, role: Role,
+        clientId: String?, unit: String?, amount: Double = 0.0
+    ) {
+        users.add(AppUser(nextId(), name, role, clientId, unit, username.trim(), password))
+        val cl = client(clientId)
+        if (role == Role.USER && cl != null && unit != null) {
+            if (units.none { it.clientId == cl.id && it.unit == unit }) units.add(UnitInfo(cl.id, unit, name))
+            if (amount > 0) {
+                val concept = if (cl.template == Template.CONDOMINIO) "Cuota de mantenimiento" else "Renta mensual"
+                charges.add(Charge(nextId(), cl.id, unit, concept, amount, LocalDate.now().plusMonths(1).withDayOfMonth(5)))
+            }
+        }
+    }
+
+    fun deleteAccount(id: String) {
+        val u = users.firstOrNull { it.id == id } ?: return
+        if (u.role == Role.SUPER_ADMIN) return
+        users.removeAll { it.id == id }
+        if (currentUser?.id == id) currentUser = null
+    }
+
     // ---------- Cobros ----------
     fun markPaid(id: String) {
         val i = charges.indexOfFirst { it.id == id }
         if (i >= 0) charges[i] = charges[i].copy(paid = true)
-    }
-
-    fun addResident(client: Client, name: String, role: Role, unit: String, amount: Double) {
-        users.add(AppUser(nextId(), name, role, client.id, unit))
-        if (units.none { it.clientId == client.id && it.unit == unit }) {
-            units.add(UnitInfo(client.id, unit, name))
-        }
-        val concept = if (client.template == Template.CONDOMINIO) "Cuota de mantenimiento" else "Renta mensual"
-        charges.add(
-            Charge(nextId(), client.id, unit, concept, amount, LocalDate.now().plusMonths(1).withDayOfMonth(5))
-        )
     }
 
     // ---------- Incidencias ----------
@@ -138,12 +160,12 @@ object Store {
 
         users.addAll(
             listOf(
-                AppUser("u0", "Jhosep (Super Admin)", Role.SUPER_ADMIN, null, null),
-                AppUser("u1", "Ana Torres", Role.ADMIN, "c1", null),
-                AppUser("u2", "Carlos Ramos", Role.OWNER, "c1", "Dpto 301"),
-                AppUser("u3", "Lucía Vega", Role.TENANT, "c1", "Dpto 302"),
-                AppUser("u4", "Pedro Quispe", Role.ADMIN, "c2", null),
-                AppUser("u5", "Marco Díaz", Role.TENANT, "c2", "Depa 2")
+                AppUser("u0", "Jhosep (Super Admin)", Role.SUPER_ADMIN, null, null, "super", "Super2026"),
+                AppUser("u1", "Ana Torres", Role.ADMIN, "c1", null, "admin1", "Admin2026"),
+                AppUser("u2", "Carlos Ramos", Role.USER, "c1", "Dpto 301", "carlos", "Inquilino2026"),
+                AppUser("u3", "Lucía Vega", Role.USER, "c1", "Dpto 302", "lucia", "Inquilino2026"),
+                AppUser("u4", "Pedro Quispe", Role.ADMIN, "c2", null, "admin2", "Admin2026"),
+                AppUser("u5", "Marco Díaz", Role.USER, "c2", "Depa 2", "marco", "Inquilino2026")
             )
         )
 
