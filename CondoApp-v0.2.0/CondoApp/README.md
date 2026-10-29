@@ -1,7 +1,41 @@
-# CondoApp v0.3.0
+# Convive v0.6.0
+
+> Antes "CondoApp". La app ahora se llama **Convive**.
 
 App Android (Kotlin + Jetpack Compose) para condominios, edificios y casas que se alquilan por departamento.
 Una sola app con **3 roles**: Super Admin, Administrador e Inquilino.
+
+## Novedades de la v0.6.0
+
+- **Login nuevo** con la foto del edificio de fondo.
+- **Suscripciones**: el Super Admin solo cobra la suscripción mensual de cada cliente (vence el día 5).
+  Con un solo botón la marca como **pagada**, y puede poner a un cliente en **Gratis** (con todas las funciones de pago).
+- **Owner**: si un cliente tiene dos o más administradores, uno es el **owner** (responsable del pago);
+  los demás tienen las mismas funciones.
+- **Mi perfil** del administrador (tocando su foto): cuánto paga, estado del mes, historial de pagos,
+  equipo de administradores, ver introducción y cerrar sesión.
+- Cuenta de prueba nueva: `sofia` (administradora de Casa Quispe, no owner).
+
+## Novedades de la v0.5.0
+
+- **Introducción de 3 pasos** al entrar por primera vez: una para el administrador y otra para el inquilino
+  (se puede volver a ver desde el avatar → "Ver introducción").
+- **Contrato del inquilino** (casas por departamentos): al registrarlo, el administrador indica DNI, nombre completo,
+  fecha de inicio y fin, si dejó garantía y el monto, pago mensual y servicios incluidos.
+- **Renovación de contrato**: el administrador ve los contratos vencidos o por vencer, marca
+  "Debe firmar nuevamente el contrato" y toca **Enviar**; recién ahí el inquilino ve el aviso en su Inicio.
+- El inquilino ve "Mi contrato" en su Inicio. **El Super Admin no ve esta información.**
+
+## Novedades de la v0.4.0
+
+- **Nuevo nombre: Convive**, con los mismos colores (azul noche + verde azulado + ámbar).
+- **Interfaz renovada**: saludo con campana y avatar, barra inferior flotante tipo píldora, buscador y accesos rápidos.
+- **Buscador de inquilinos** para Administrador y Super Admin.
+- **Perfil del inquilino**: el administrador ve si pagó, sus reportes, si falta la foto del medidor, sus alertas y su cuenta.
+- **Avisos con foto**: el administrador puede adjuntar una foto (por ejemplo, el comunicado del corte).
+- **Avisos en carrusel** en el Inicio del inquilino (pasan solos cada 5 segundos).
+- **Medidores solo para casas** por departamentos (ya no aparece en condominios).
+- **Super Admin con estadísticas**: ingresos por cliente, cobranza (gráfico de dona), usuarios por cliente y avance de medidores.
 
 ## Novedades de la v0.3.0
 
@@ -31,8 +65,9 @@ Una sola app con **3 roles**: Super Admin, Administrador e Inquilino.
 | `superadmin` | Super Admin |
 | `ana` | Administradora · Condominio Los Álamos |
 | `lucia`, `carlos` | Inquilinos · Condominio Los Álamos |
-| `pedro` | Administrador · Casa Quispe |
-| `marco` | Inquilino · Casa Quispe |
+| `pedro` | Administrador **owner** · Casa Quispe (con medidores) |
+| `sofia` | Administradora · Casa Quispe (no owner) |
+| `marco`, `rosa`, `diego` | Inquilinos · Casa Quispe |
 
 ## Flujo de emergencia
 
@@ -56,6 +91,8 @@ También se puede abrir esta carpeta en Android Studio y usar `Build > Build APK
 | `Components.kt` | Piezas de diseño reutilizables |
 | `LoginScreen.kt`, `Navigation.kt` | Ingreso y navegación por rol |
 | `SuperAdminScreens.kt`, `AdminScreens.kt`, `TenantScreens.kt` | Pantallas de cada rol |
+| `MeterScreens.kt`, `ProfileScreen.kt` | Medidores y perfil del inquilino |
+| `Kit.kt`, `PhotoPicker.kt`, `Photos.kt` | Buscador, barra flotante, fotos |
 
 ## Pendiente (siguientes versiones)
 
@@ -63,4 +100,4 @@ También se puede abrir esta carpeta en Android Studio y usar `Build > Build APK
 - Notificaciones push para emergencias y avisos.
 - Áreas comunes, asambleas y visitas.
 
-> CondoApp no reemplaza a Bomberos (116), Policía (105) ni SAMU (106).
+> Convive no reemplaza a Bomberos (116), Policía (105) ni SAMU (106).

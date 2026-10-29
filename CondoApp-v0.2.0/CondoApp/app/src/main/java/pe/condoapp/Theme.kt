@@ -12,7 +12,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Paleta de CondoApp: azul noche + verde azulado, ámbar para avisos y rojo solo para emergencias. */
+/** Paleta de Convive: azul noche + verde azulado, ámbar para avisos y rojo solo para emergencias. */
 object Palette {
     val Navy = Color(0xFF0B1F3A)
     val NavySoft = Color(0xFFE6EBF3)

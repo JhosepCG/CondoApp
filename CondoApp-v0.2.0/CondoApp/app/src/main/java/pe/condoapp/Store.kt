@@ -10,6 +10,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 
 /**
@@ -28,13 +29,17 @@ object Store {
     val emergencies = mutableStateListOf<Emergency>()
     val meterRequests = mutableStateListOf<MeterRequest>()
     val meterReadings = mutableStateListOf<MeterReading>()
+    val contracts = mutableStateListOf<Contract>()
+    val subscriptionPayments = mutableStateListOf<SubscriptionPayment>()
+    /** Usuarios que ya vieron la introducción. */
+    val onboarded = mutableStateListOf<String>()
 
     var currentUser by mutableStateOf<AppUser?>(null)
         private set
 
     private var prefs: SharedPreferences? = null
     private var seq = 100
-    private const val DATA_VERSION = 3
+    private const val DATA_VERSION = 6
 
     fun init(context: Context) {
         if (prefs != null) return
@@ -60,8 +65,22 @@ object Store {
     fun unitsOf(clientId: String): List<UnitInfo> = units.filter { it.clientId == clientId }
 
     fun defaultsFor(t: Template): Set<Feature> = when (t) {
-        Template.CONDOMINIO -> Feature.values().toSet()
+        Template.CONDOMINIO -> Feature.values().filter { it != Feature.MEDIDORES }.toSet()
         Template.CASA_DEPAS -> setOf(Feature.COBROS, Feature.INCIDENCIAS, Feature.MEDIDORES, Feature.AVISOS, Feature.EMERGENCIA)
+    }
+
+    /** La función de medidores solo existe para casas por departamentos. */
+    fun featureOn(c: Client?, f: Feature): Boolean =
+        c != null && f in c.modules && (f != Feature.MEDIDORES || c.template == Template.CASA_DEPAS)
+
+    /** Busca inquilinos por nombre, usuario o departamento. clientId = null busca en todos. */
+    fun searchTenants(query: String, clientId: String?): List<AppUser> {
+        val q = query.trim().lowercase()
+        if (q.isEmpty()) return emptyList()
+        return users.filter { u ->
+            u.role == Role.TENANT && (clientId == null || u.clientId == clientId) &&
+                (u.name.lowercase().contains(q) || u.username.contains(q) || (u.unit?.lowercase()?.contains(q) == true))
+        }
     }
 
     fun isOverdue(c: Charge): Boolean = !c.paid && LocalDate.now().isAfter(c.due)
@@ -123,7 +142,8 @@ object Store {
         clientId: String?,
         unit: String?,
         responsible: String?,
-        amount: Double?
+        amount: Double?,
+        contract: Contract? = null
     ): String? {
         val n = name.trim()
         val un = username.trim().lowercase()
@@ -135,8 +155,13 @@ object Store {
         if (role != Role.SUPER_ADMIN && c == null) return "Elige un cliente."
         val u = unit?.trim()?.takeIf { it.isNotEmpty() }
         if (role == Role.TENANT && u == null) return "Indica el departamento o casa."
+        if (contract != null) validateContract(contract)?.let { return it }
 
-        users.add(AppUser(nextId(), n, un, password, role, c?.id, if (role == Role.TENANT) u else null))
+        val newId = nextId()
+        users.add(AppUser(newId, n, un, password, role, c?.id, if (role == Role.TENANT) u else null))
+        if (contract != null && role == Role.TENANT && c != null) {
+            contracts.add(contract.copy(userId = newId, clientId = c.id))
+        }
         if (role == Role.TENANT && c != null && u != null) {
             if (units.none { it.clientId == c.id && it.unit == u }) {
                 val resp = responsible?.trim()?.takeIf { it.isNotEmpty() } ?: n
@@ -154,6 +179,7 @@ object Store {
     fun deleteAccount(id: String) {
         if (id == currentUser?.id) return
         users.removeAll { it.id == id }
+        contracts.removeAll { it.userId == id }
         save()
     }
 
@@ -181,7 +207,112 @@ object Store {
         emergencies.removeAll { it.clientId == id }
         meterRequests.removeAll { it.clientId == id }
         meterReadings.removeAll { it.clientId == id }
+        contracts.removeAll { it.clientId == id }
+        subscriptionPayments.removeAll { it.clientId == id }
         save()
+    }
+
+    // ---------------- Suscripciones (las cobra solo el Super Admin) ----------------
+    /** La suscripción vence el día 5 de cada mes. */
+    const val SUB_DUE_DAY = 5
+
+    fun periodOf(d: LocalDate = LocalDate.now()): String = YearMonth.from(d).toString()
+
+    fun subDue(period: String): LocalDate = YearMonth.parse(period).atDay(SUB_DUE_DAY)
+
+    /** Owner: el administrador responsable de pagar. Si no hay uno marcado, el primer administrador. */
+    fun ownerOf(c: Client?): AppUser? {
+        if (c == null) return null
+        return users.firstOrNull { it.id == c.ownerId && it.role == Role.ADMIN && it.clientId == c.id }
+            ?: adminsOf(c.id).firstOrNull()
+    }
+
+    fun isOwner(u: AppUser): Boolean = u.role == Role.ADMIN && ownerOf(client(u.clientId))?.id == u.id
+
+    fun setOwner(clientId: String, userId: String) {
+        val i = clients.indexOfFirst { it.id == clientId }
+        if (i >= 0) {
+            clients[i] = clients[i].copy(ownerId = userId)
+            save()
+        }
+    }
+
+    fun setPlan(clientId: String, plan: Plan) {
+        val i = clients.indexOfFirst { it.id == clientId }
+        if (i >= 0) {
+            clients[i] = clients[i].copy(plan = plan)
+            save()
+        }
+    }
+
+    fun subPayment(clientId: String, period: String): SubscriptionPayment? =
+        subscriptionPayments.firstOrNull { it.clientId == clientId && it.period == period }
+
+    fun subStatus(c: Client, period: String = periodOf()): SubStatus = when {
+        c.plan == Plan.GRATIS -> SubStatus.GRATIS
+        subPayment(c.id, period) != null -> SubStatus.PAGADO
+        LocalDate.now().isAfter(subDue(period)) -> SubStatus.VENCIDO
+        else -> SubStatus.PENDIENTE
+    }
+
+    /** Un solo botón: marca el mes como pagado o lo deshace. */
+    fun toggleSubscriptionPaid(c: Client, period: String = periodOf()) {
+        val existing = subPayment(c.id, period)
+        if (existing != null) subscriptionPayments.remove(existing)
+        else subscriptionPayments.add(SubscriptionPayment(nextId(), c.id, period, c.monthlyFee, now()))
+        save()
+    }
+
+    // ---------------- Contratos (solo administrador de casa) ----------------
+    fun contractOf(userId: String): Contract? = contracts.firstOrNull { it.userId == userId }
+
+    fun contractExpired(c: Contract): Boolean = LocalDate.now().isAfter(c.end)
+
+    /** Vence en 30 días o menos (y aún no venció). */
+    fun contractEndingSoon(c: Contract): Boolean =
+        !contractExpired(c) && !LocalDate.now().plusDays(30).isBefore(c.end)
+
+    fun validateContract(c: Contract): String? = when {
+        c.dni.length != 8 || !c.dni.all { it.isDigit() } -> "El DNI debe tener 8 números."
+        !c.end.isAfter(c.start) -> "La fecha de fin debe ser posterior al inicio."
+        c.monthlyRent <= 0 -> "Indica el monto mensual."
+        c.guarantee && c.guaranteeAmount <= 0 -> "Indica el monto de la garantía."
+        else -> null
+    }
+
+    fun saveContract(c: Contract): String? {
+        validateContract(c)?.let { return it }
+        val i = contracts.indexOfFirst { it.userId == c.userId }
+        if (i >= 0) contracts[i] = c else contracts.add(c)
+        save()
+        return null
+    }
+
+    /** El administrador le indica al inquilino que debe firmar nuevamente el contrato. */
+    fun requestRenewal(userId: String) {
+        val i = contracts.indexOfFirst { it.userId == userId }
+        if (i >= 0) {
+            contracts[i] = contracts[i].copy(renewRequested = true, renewRequestedAt = now())
+            save()
+        }
+    }
+
+    /** Ya firmó: el contrato sigue desde la fecha de fin anterior por [months] meses. */
+    fun renewContract(userId: String, months: Long) {
+        val i = contracts.indexOfFirst { it.userId == userId }
+        if (i >= 0) {
+            val old = contracts[i]
+            val from = if (old.end.isAfter(LocalDate.now())) old.end else LocalDate.now()
+            contracts[i] = old.copy(start = from, end = from.plusMonths(months), renewRequested = false, renewRequestedAt = null)
+            save()
+        }
+    }
+
+    fun markOnboarded(userId: String) {
+        if (userId !in onboarded) {
+            onboarded.add(userId)
+            save()
+        }
     }
 
     // ---------------- Cobros ----------------
@@ -225,12 +356,13 @@ object Store {
     }
 
     // ---------------- Avisos ----------------
-    fun addNotice(clientId: String, category: String, title: String, body: String, urgent: Boolean) {
-        notices.add(Notice(nextId(), clientId, category, title.trim(), body.trim(), urgent, now()))
+    fun addNotice(clientId: String, category: String, title: String, body: String, urgent: Boolean, photoPath: String? = null) {
+        notices.add(Notice(nextId(), clientId, category, title.trim(), body.trim(), urgent, now(), photoPath))
         save()
     }
 
     fun removeNotice(id: String) {
+        notices.filter { it.id == id }.forEach { Photos.delete(it.photoPath) }
         notices.removeAll { it.id == id }
         save()
     }
@@ -325,12 +457,13 @@ object Store {
         clients.clear(); users.clear(); units.clear(); charges.clear()
         incidents.clear(); notices.clear(); emergencies.clear()
         meterRequests.clear(); meterReadings.clear()
+        contracts.clear(); onboarded.clear(); subscriptionPayments.clear()
         seq = 100
 
         clients.addAll(
             listOf(
-                Client("c1", "Condominio Los Álamos", Template.CONDOMINIO, 150.0, true, defaultsFor(Template.CONDOMINIO)),
-                Client("c2", "Casa Quispe · 4 depas", Template.CASA_DEPAS, 40.0, true, defaultsFor(Template.CASA_DEPAS))
+                Client("c1", "Condominio Los Álamos", Template.CONDOMINIO, 150.0, true, defaultsFor(Template.CONDOMINIO), ownerId = "u1"),
+                Client("c2", "Casa Quispe · 4 depas", Template.CASA_DEPAS, 40.0, true, defaultsFor(Template.CASA_DEPAS), ownerId = "u4")
             )
         )
         users.addAll(
@@ -340,14 +473,19 @@ object Store {
                 AppUser("u2", "Carlos Ramos", "carlos", "1234", Role.TENANT, "c1", "Dpto 301"),
                 AppUser("u3", "Lucía Vega", "lucia", "1234", Role.TENANT, "c1", "Dpto 302"),
                 AppUser("u4", "Pedro Quispe", "pedro", "1234", Role.ADMIN, "c2", null),
-                AppUser("u5", "Marco Díaz", "marco", "1234", Role.TENANT, "c2", "Depa 2")
+                AppUser("u5", "Marco Díaz", "marco", "1234", Role.TENANT, "c2", "Depa 2"),
+                AppUser("u6", "Rosa Huamán", "rosa", "1234", Role.TENANT, "c2", "Depa 1"),
+                AppUser("u7", "Diego Salas", "diego", "1234", Role.TENANT, "c2", "Depa 3"),
+                AppUser("u8", "Sofía Quispe", "sofia", "1234", Role.ADMIN, "c2", null)
             )
         )
         units.addAll(
             listOf(
                 UnitInfo("c1", "Dpto 301", "Carlos Ramos"),
                 UnitInfo("c1", "Dpto 302", "Carlos Ramos"),
-                UnitInfo("c2", "Depa 2", "Pedro Quispe")
+                UnitInfo("c2", "Depa 1", "Pedro Quispe"),
+                UnitInfo("c2", "Depa 2", "Pedro Quispe"),
+                UnitInfo("c2", "Depa 3", "Pedro Quispe")
             )
         )
         val today = LocalDate.now()
@@ -355,11 +493,18 @@ object Store {
             listOf(
                 Charge("ch1", "c1", "Dpto 301", "Cuota de mantenimiento", 180.0, today.plusDays(5)),
                 Charge("ch2", "c1", "Dpto 302", "Cuota de mantenimiento", 180.0, today.minusDays(6)),
-                Charge("ch3", "c2", "Depa 2", "Renta mensual", 650.0, today.plusDays(3))
+                Charge("ch3", "c2", "Depa 2", "Renta mensual", 650.0, today.plusDays(3)),
+                Charge("ch4", "c2", "Depa 1", "Renta mensual", 600.0, today.minusDays(2), paid = true),
+                Charge("ch5", "c2", "Depa 3", "Renta mensual", 700.0, today.minusDays(4)),
+                Charge("ch6", "c1", "Dpto 301", "Cuota de mantenimiento", 180.0, today.minusDays(30), paid = true),
+                Charge("ch7", "c1", "Dpto 302", "Cuota de mantenimiento", 180.0, today.minusDays(36), paid = true)
             )
         )
         incidents.add(
             Incident("i1", "c1", "u3", "Lucía Vega", "Dpto 302", "Internet", "Sin señal desde la mañana.", createdAt = now())
+        )
+        incidents.add(
+            Incident("i2", "c2", "u7", "Diego Salas", "Depa 3", "Agua", "Poca presión en la ducha.", createdAt = now())
         )
         notices.addAll(
             listOf(
@@ -367,9 +512,26 @@ object Store {
                 Notice("n2", "c1", "Mantenimiento", "Fumigación de áreas comunes", "El sábado desde las 8:00. Mantén a tus mascotas dentro.", false, now())
             )
         )
+        contracts.addAll(
+            listOf(
+                Contract("u5", "c2", "70123456", today.minusMonths(11), today.plusDays(20), true, 650.0, 650.0, listOf("Agua", "Luz", "Internet")),
+                Contract("u6", "c2", "45678912", today.minusMonths(13), today.minusDays(15), true, 600.0, 600.0, listOf("Agua", "Internet", "Cable")),
+                Contract("u7", "c2", "72345678", today.minusMonths(3), today.plusMonths(9), false, 0.0, 700.0, listOf("Agua", "Luz"))
+            )
+        )
+        // Suscripciones: Los Álamos pagó los últimos 3 meses; Casa Quispe debe el mes actual.
+        val ym = YearMonth.from(today)
+        (1L..3L).forEach { k ->
+            val p = ym.minusMonths(k - 1).toString()
+            subscriptionPayments.add(SubscriptionPayment("sp1$k", "c1", p, 150.0, "05/" + ym.minusMonths(k - 1).monthValue.toString().padStart(2, '0')))
+        }
+        (2L..3L).forEach { k ->
+            val p = ym.minusMonths(k - 1).toString()
+            subscriptionPayments.add(SubscriptionPayment("sp2$k", "c2", p, 40.0, "04/" + ym.minusMonths(k - 1).monthValue.toString().padStart(2, '0')))
+        }
         val month = today.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("es", "PE"))
-        addMeterRequest("c1", "Medidor de luz · $month", today.plusDays(5))
         addMeterRequest("c2", "Medidor de luz · $month", today.plusDays(3))
+        notices.add(Notice("n3", "c2", "Corte de luz", "Corte de luz el jueves", "Luz del Sur cortará el servicio de 8:00 a 12:00. Adjunto el comunicado.", false, now()))
     }
 
     // ---------------- Guardado local (JSON) ----------------
@@ -393,6 +555,7 @@ object Store {
             j.put("id", c.id); j.put("name", c.name); j.put("template", c.template.name)
             j.put("fee", c.monthlyFee); j.put("active", c.active)
             j.put("late", c.lateFeePercent); j.put("grace", c.graceDays)
+            j.putNullable("ownerId", c.ownerId); j.put("plan", c.plan.name)
             val m = JSONArray()
             c.modules.forEach { f -> m.put(f.name) }
             j.put("modules", m)
@@ -444,7 +607,7 @@ object Store {
             val j = JSONObject()
             j.put("id", n.id); j.put("clientId", n.clientId); j.put("category", n.category)
             j.put("title", n.title); j.put("body", n.body); j.put("urgent", n.urgent)
-            j.put("createdAt", n.createdAt)
+            j.put("createdAt", n.createdAt); j.putNullable("photoPath", n.photoPath)
             na.put(j)
         }
         o.put("notices", na)
@@ -479,6 +642,34 @@ object Store {
         }
         o.put("meterReadings", mla)
 
+        val cta = JSONArray()
+        contracts.forEach { c ->
+            val j = JSONObject()
+            j.put("userId", c.userId); j.put("clientId", c.clientId); j.put("dni", c.dni)
+            j.put("start", c.start.toString()); j.put("end", c.end.toString())
+            j.put("guarantee", c.guarantee); j.put("guaranteeAmount", c.guaranteeAmount)
+            j.put("rent", c.monthlyRent)
+            val sv = JSONArray()
+            c.services.forEach { sv.put(it) }
+            j.put("services", sv)
+            j.put("renewRequested", c.renewRequested); j.putNullable("renewRequestedAt", c.renewRequestedAt)
+            cta.put(j)
+        }
+        o.put("contracts", cta)
+
+        val spa = JSONArray()
+        subscriptionPayments.forEach { sp ->
+            val j = JSONObject()
+            j.put("id", sp.id); j.put("clientId", sp.clientId); j.put("period", sp.period)
+            j.put("amount", sp.amount); j.put("paidAt", sp.paidAt)
+            spa.put(j)
+        }
+        o.put("subscriptionPayments", spa)
+
+        val oba = JSONArray()
+        onboarded.forEach { oba.put(it) }
+        o.put("onboarded", oba)
+
         p.edit().putString("data", o.toString()).apply()
     }
 
@@ -497,7 +688,9 @@ object Store {
                 active = j.getBoolean("active"),
                 modules = Feature.values().filter { it.name in names }.toSet(),
                 lateFeePercent = j.getDouble("late"),
-                graceDays = j.getInt("grace")
+                graceDays = j.getInt("grace"),
+                ownerId = j.str("ownerId"),
+                plan = runCatching { Plan.valueOf(j.getString("plan")) }.getOrDefault(Plan.PAGO)
             )
         }
         val us = o.getJSONArray("users").objects().map { j ->
@@ -532,7 +725,7 @@ object Store {
         val no = o.getJSONArray("notices").objects().map { j ->
             Notice(
                 j.getString("id"), j.getString("clientId"), j.getString("category"), j.getString("title"),
-                j.getString("body"), j.getBoolean("urgent"), j.getString("createdAt")
+                j.getString("body"), j.getBoolean("urgent"), j.getString("createdAt"), j.str("photoPath")
             )
         }
         val em = o.getJSONArray("emergencies").objects().map { j ->
@@ -563,6 +756,27 @@ object Store {
             )
         }
 
+        val ct = (o.optJSONArray("contracts") ?: JSONArray()).objects().map { j ->
+            val sv = j.getJSONArray("services")
+            Contract(
+                userId = j.getString("userId"),
+                clientId = j.getString("clientId"),
+                dni = j.getString("dni"),
+                start = LocalDate.parse(j.getString("start")),
+                end = LocalDate.parse(j.getString("end")),
+                guarantee = j.getBoolean("guarantee"),
+                guaranteeAmount = j.getDouble("guaranteeAmount"),
+                monthlyRent = j.getDouble("rent"),
+                services = (0 until sv.length()).map { sv.getString(it) },
+                renewRequested = j.optBoolean("renewRequested"),
+                renewRequestedAt = j.str("renewRequestedAt")
+            )
+        }
+        val ob = o.optJSONArray("onboarded") ?: JSONArray()
+        val sps = (o.optJSONArray("subscriptionPayments") ?: JSONArray()).objects().map { j ->
+            SubscriptionPayment(j.getString("id"), j.getString("clientId"), j.getString("period"), j.getDouble("amount"), j.getString("paidAt"))
+        }
+
         clients.clear(); clients.addAll(cl)
         users.clear(); users.addAll(us)
         units.clear(); units.addAll(un)
@@ -572,6 +786,9 @@ object Store {
         emergencies.clear(); emergencies.addAll(em)
         meterRequests.clear(); meterRequests.addAll(mr)
         meterReadings.clear(); meterReadings.addAll(ml)
+        contracts.clear(); contracts.addAll(ct)
+        subscriptionPayments.clear(); subscriptionPayments.addAll(sps)
+        onboarded.clear(); onboarded.addAll((0 until ob.length()).map { ob.getString(it) })
         seq = o.getInt("seq")
         true
     } catch (e: Exception) {

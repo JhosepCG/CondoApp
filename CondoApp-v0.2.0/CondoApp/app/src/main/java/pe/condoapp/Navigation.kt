@@ -1,8 +1,11 @@
 package pe.condoapp
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -10,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,7 +35,7 @@ enum class Tab(val label: String, val icon: ImageVector) {
 /** Pestañas de la barra inferior (máximo 5). */
 fun tabsFor(user: AppUser): List<Tab> {
     val c = Store.clientOf(user)
-    fun on(f: Feature): Boolean = c != null && f in c.modules
+    fun on(f: Feature): Boolean = Store.featureOn(c, f)
     return when (user.role) {
         Role.SUPER_ADMIN -> listOf(Tab.RESUMEN, Tab.CLIENTES, Tab.CUENTAS)
         Role.ADMIN -> {
@@ -58,20 +62,40 @@ fun tabsFor(user: AppUser): List<Tab> {
 @Composable
 fun AppRoot() {
     val user = Store.currentUser
-    if (user == null) LoginScreen() else MainScaffold(user)
+    when {
+        user == null -> LoginScreen()
+        user.role != Role.SUPER_ADMIN && (user.id !in Store.onboarded || UiState.showOnboarding) ->
+            OnboardingScreen(user) {
+                Store.markOnboarded(user.id)
+                UiState.showOnboarding = false
+            }
+        else -> MainScaffold(user)
+    }
 }
 
 @Composable
 private fun MainScaffold(user: AppUser) {
     val tabs = tabsFor(user)
     var tab by remember(user.id) { mutableStateOf(tabs.first()) }
+    LaunchedEffect(user.id) {
+        UiState.profileId = null
+        UiState.myProfile = false
+    }
     val personasHidden = user.role == Role.ADMIN && Tab.PERSONAS !in tabs
     val current = if (tab in tabs || (tab == Tab.PERSONAS && personasHidden)) tab else tabs.first()
-    val go: (Tab) -> Unit = { tab = it }
+    val go: (Tab) -> Unit = {
+        UiState.profileId = null
+        UiState.myProfile = false
+        tab = it
+    }
     val client = Store.clientOf(user)
     val pendingAlerts = if (user.role == Role.ADMIN && client != null) {
         Store.emergencies.count { it.clientId == client.id && it.status == EmergencyStatus.PENDIENTE }
     } else 0
+    val urgentNotices = if (user.role == Role.TENANT && client != null) {
+        Store.notices.count { it.clientId == client.id && it.urgent }
+    } else 0
+    val profileId = UiState.profileId
 
     Column(
         Modifier
@@ -79,10 +103,23 @@ private fun MainScaffold(user: AppUser) {
             .background(Palette.Bg)
             .systemBarsPadding()
     ) {
-        TopBar(user, client)
+        TopBar(
+            user = user,
+            client = client,
+            bellDot = pendingAlerts > 0 || urgentNotices > 0,
+            onBell = when (user.role) {
+                Role.ADMIN -> ({ go(Tab.PANEL) })
+                Role.TENANT -> if (Tab.AVISOS in tabs) ({ go(Tab.AVISOS) }) else null
+                Role.SUPER_ADMIN -> null
+            }
+        )
         Box(Modifier.weight(1f)) {
-            when (current) {
-                Tab.RESUMEN -> SuperResumen(user)
+            if (UiState.myProfile && user.role == Role.ADMIN) {
+                AdminMyProfile(user) { UiState.myProfile = false }
+            } else if (profileId != null && user.role != Role.TENANT) {
+                TenantProfile(user, profileId) { UiState.profileId = null }
+            } else when (current) {
+                Tab.RESUMEN -> SuperResumen(user, go)
                 Tab.CLIENTES -> SuperClientes()
                 Tab.CUENTAS -> SuperCuentas(user)
                 Tab.PANEL -> AdminPanel(user, go, personasHidden)
@@ -95,75 +132,130 @@ private fun MainScaffold(user: AppUser) {
                 Tab.MEDIDORES -> AdminMedidores(user)
             }
         }
-        LineDivider()
-        NavigationBar(containerColor = Palette.Surface, tonalElevation = 0.dp) {
+        FloatingNav {
             tabs.forEach { t ->
-                NavigationBarItem(
-                    selected = current == t,
-                    onClick = { tab = t },
-                    icon = {
-                        Box {
-                            Icon(t.icon, contentDescription = t.label)
-                            if (t == Tab.PANEL && pendingAlerts > 0) {
-                                Box(
-                                    Modifier
-                                        .align(Alignment.TopEnd)
-                                        .size(9.dp)
-                                        .clip(CircleShape)
-                                        .background(Palette.Red)
-                                )
-                            }
-                        }
-                    },
-                    label = { Text(t.label, style = MaterialTheme.typography.labelSmall) },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Palette.Teal,
-                        selectedTextColor = Palette.Teal,
-                        indicatorColor = Palette.TealSoft,
-                        unselectedIconColor = Palette.Muted,
-                        unselectedTextColor = Palette.Muted
-                    )
-                )
+                val sel = current == t && profileId == null && !UiState.myProfile
+                NavPill(
+                    icon = t.icon,
+                    label = t.label,
+                    selected = sel,
+                    dot = t == Tab.PANEL && pendingAlerts > 0,
+                    modifier = Modifier.weight(if (sel) 2.2f else 1f)
+                ) { go(t) }
             }
         }
     }
 }
 
 @Composable
-private fun TopBar(user: AppUser, client: Client?) {
-    var confirmLogout by remember { mutableStateOf(false) }
+private fun TopBar(user: AppUser, client: Client?, bellDot: Boolean, onBell: (() -> Unit)?) {
+    var accountOpen by remember { mutableStateOf(false) }
+    val firstName = user.name.substringBefore(" ")
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Palette.Surface)
-            .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+            .padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Avatar(user.name, bg = roleBg(user.role), fg = roleFg(user.role))
         Column(Modifier.weight(1f)) {
-            Text(user.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                user.role.label + (client?.let { " · " + it.name } ?: ""),
+                "${greeting()},",
+                style = MaterialTheme.typography.bodyMedium,
+                color = Palette.Muted
+            )
+            Text(
+                firstName,
+                style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                client?.name ?: user.role.label,
                 style = MaterialTheme.typography.bodySmall,
-                color = Palette.Muted,
+                color = Palette.Teal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        IconButton(onClick = { confirmLogout = true }) {
-            Icon(Icons.Rounded.PowerSettingsNew, contentDescription = "Cerrar sesión", tint = Palette.Muted)
+        if (onBell != null) {
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(Palette.Surface)
+                    .border(1.dp, Palette.Line, CircleShape)
+                    .clickable(onClick = onBell),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Rounded.Notifications, contentDescription = "Avisos", tint = Palette.Ink)
+                if (bellDot) {
+                    Box(
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(top = 11.dp, end = 12.dp)
+                            .size(9.dp)
+                            .clip(CircleShape)
+                            .background(Palette.Red)
+                    )
+                }
+            }
+        }
+        // El administrador abre "Mi perfil"; los demás, el menú de la cuenta.
+        Box(Modifier.clip(CircleShape).clickable {
+            if (user.role == Role.ADMIN) UiState.myProfile = true else accountOpen = true
+        }) {
+            Avatar(user.name, size = 46.dp, bg = Palette.Navy, fg = Color.White)
         }
     }
-    LineDivider()
-    if (confirmLogout) {
-        ConfirmDialog(
-            title = "Cerrar sesión",
-            text = "¿Quieres salir de tu cuenta?",
-            confirm = "Salir",
-            onConfirm = { Store.logout() },
-            onDismiss = { confirmLogout = false },
-            danger = false
+    if (accountOpen) {
+        AlertDialog(
+            onDismissRequest = { accountOpen = false },
+            containerColor = Palette.Surface,
+            shape = RoundedCornerShape(24.dp),
+            icon = { Avatar(user.name, size = 56.dp, bg = Palette.Navy, fg = Color.White) },
+            title = { Text(user.name, style = MaterialTheme.typography.titleLarge) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text("@" + user.username, style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                    Spacer(Modifier.height(8.dp))
+                    Pill(user.role.label, roleFg(user.role), roleBg(user.role))
+                    if (client != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            listOfNotNull(user.unit, client.name).joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.Muted
+                        )
+                    }
+                    if (user.role != Role.SUPER_ADMIN) {
+                        Spacer(Modifier.height(10.dp))
+                        TextButton(onClick = {
+                            accountOpen = false
+                            UiState.showOnboarding = true
+                        }) {
+                            Icon(Icons.Rounded.HelpOutline, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Ver introducción", color = Palette.Teal, style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    accountOpen = false
+                    Store.logout()
+                }) {
+                    Icon(Icons.Rounded.PowerSettingsNew, contentDescription = null, tint = Palette.Red, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Cerrar sesión", color = Palette.Red, style = MaterialTheme.typography.labelLarge)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { accountOpen = false }) {
+                    Text("Cancelar", color = Palette.Muted, style = MaterialTheme.typography.labelLarge)
+                }
+            }
         )
     }
 }

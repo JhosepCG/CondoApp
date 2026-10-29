@@ -1,15 +1,22 @@
 package pe.condoapp
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import java.time.YearMonth
 
 // ------------------------------------------------------------------
 // ADMINISTRADOR · Panel
@@ -18,23 +25,80 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) {
     val c = Store.clientOf(user) ?: return
-    val meterReq = if (Feature.MEDIDORES in c.modules) Store.activeMeterRequest(c.id) else null
+    val meterReq = if (Store.featureOn(c, Feature.MEDIDORES)) Store.activeMeterRequest(c.id) else null
     val list = Store.emergencies.filter { it.clientId == c.id }.reversed()
     val pending = list.filter { it.status == EmergencyStatus.PENDIENTE }
     val active = list.filter { it.status == EmergencyStatus.CONFIRMADA }
+    val tenants = Store.tenantsOf(c.id)
     val overdue = Store.charges.count { it.clientId == c.id && Store.isOverdue(it) }
     val openInc = Store.incidents.count {
         it.clientId == c.id && !(it.status == IncidentStatus.RESUELTO && it.confirmed == true)
     }
+    val month = YearMonth.now()
+    val allCharges = Store.charges.filter { it.clientId == c.id }
+    val monthCharges = allCharges.filter { YearMonth.from(it.due) == month }.ifEmpty { allCharges }
+    val total = monthCharges.sumOf { it.amount }
+    val collected = monthCharges.filter { it.paid }.sumOf { it.amount }
     val lastNotices = Store.notices.filter { it.clientId == c.id }.reversed().take(2)
+    val sentCount = meterReq?.let { r -> tenants.count { t -> Store.readingFor(r.id, t.id) != null } } ?: 0
+    // Primero los inquilinos con algo pendiente
+    val ranked = tenants.sortedByDescending { t ->
+        val st = tenantStatus(t)
+        st.overdue * 4 + st.pending.size * 2 + st.openIncidents + (if (st.meterSent == false) 1 else 0)
+    }
 
     ScreenColumn {
-        HeroCard(
-            eyebrow = "Administración",
-            title = c.name,
-            subtitle = c.template.label,
-            icon = templateIcon(c.template)
-        )
+        TenantSearch(c.id)
+
+        DarkCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(c.name, color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        if (Feature.COBROS in c.modules) "Cobrado este mes" else c.template.label,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                IconBadge(templateIcon(c.template), Color.White, Color.White.copy(alpha = 0.12f), 44.dp)
+            }
+            if (Feature.COBROS in c.modules) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(money(collected), color = Color.White, style = MaterialTheme.typography.headlineMedium)
+                    Text("de ${money(total)}", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(bottom = 4.dp))
+                }
+                ProgressLine(if (total > 0) (collected / total).toFloat() else 0f, Palette.Amber, Color.White.copy(alpha = 0.15f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                HeroInfo("Inquilinos", "${tenants.size}", Modifier.weight(1f))
+                if (Feature.COBROS in c.modules) HeroInfo("Vencidos", "$overdue", Modifier.weight(1f))
+                if (Feature.INCIDENCIAS in c.modules) HeroInfo("Reportes", "$openInc", Modifier.weight(1f))
+            }
+        }
+
+        // Recordatorio de suscripción (solo el owner, que es quien paga)
+        val subSt = Store.subStatus(c)
+        if (Store.isOwner(user) && (subSt == SubStatus.VENCIDO || subSt == SubStatus.PENDIENTE)) {
+            val late = subSt == SubStatus.VENCIDO
+            AppCard(
+                color = if (late) Palette.RedSoft else Palette.AmberSoft,
+                borderColor = if (late) Palette.RedSoft else Palette.AmberSoft,
+                onClick = { UiState.myProfile = true }
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconBadge(Icons.Rounded.Payments, if (late) Palette.Red else Palette.AmberDark, Palette.Surface)
+                    Column(Modifier.weight(1f)) {
+                        Text(if (late) "Tu suscripción está vencida" else "Paga tu suscripción", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "${money(c.monthlyFee)} · vence el ${Store.subDue(Store.periodOf()).format(dateFmt)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (late) Palette.Red else Palette.AmberDark
+                        )
+                    }
+                    Pill("Ver", Palette.Teal, Palette.Surface)
+                }
+            }
+        }
 
         if (Feature.EMERGENCIA in c.modules) {
             pending.forEach { e -> PendingEmergencyCard(e) }
@@ -56,36 +120,69 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
                     )
                 }
             }
-            if (pending.isEmpty() && active.isEmpty()) {
-                AppCard {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconBadge(Icons.Rounded.VerifiedUser, Palette.Green, Palette.GreenSoft)
-                        Column {
-                            Text("Todo en calma", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "No hay alertas de emergencia pendientes.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Palette.Muted
-                            )
+        }
+
+        // Accesos rápidos
+        val tiles = buildList<Triple<ImageVector, String, Pair<Tab, Int>>> {
+            if (Feature.COBROS in c.modules) add(Triple(Icons.Rounded.Payments, "Cobros", Tab.COBROS to overdue))
+            if (meterReq != null || Store.featureOn(c, Feature.MEDIDORES)) {
+                add(Triple(Icons.Rounded.Bolt, "Medidores", Tab.MEDIDORES to (if (meterReq != null) tenants.size - sentCount else 0)))
+            }
+            if (Feature.INCIDENCIAS in c.modules) add(Triple(Icons.Rounded.Build, "Reportes", Tab.SERVICIOS to openInc))
+            if (Feature.AVISOS in c.modules) add(Triple(Icons.Rounded.Campaign, "Avisos", Tab.AVISOS to 0))
+            add(Triple(Icons.Rounded.Groups, "Personas", Tab.PERSONAS to 0))
+        }
+        tiles.chunked(5).forEach { row ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                row.forEach { (icon, label, target) ->
+                    QuickTile(icon, label, Modifier.weight(1f), badge = target.second) { go(target.first) }
+                }
+                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+
+        val toRenew = if (c.template == Template.CASA_DEPAS) contractsToReview(c.id) else emptyList()
+        if (toRenew.isNotEmpty()) {
+            AppCard(color = Palette.AmberSoft, borderColor = Palette.Amber.copy(alpha = 0.45f)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconBadge(Icons.Rounded.EditNote, Palette.AmberDark, Palette.Surface)
+                    Column(Modifier.weight(1f)) {
+                        Text("Contratos por renovar", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Indícales que deben firmar nuevamente.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Palette.AmberDark
+                        )
+                    }
+                    Pill("${toRenew.size}", Palette.AmberDark, Palette.Surface)
+                }
+                toRenew.forEach { (t, ct) ->
+                    key(t.id) {
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Palette.Surface)
+                                .clickable { UiState.profileId = t.id }
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("${t.unit ?: "-"} · ${t.name}", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    (if (Store.contractExpired(ct)) "Venció el " else "Vence el ") + ct.end.format(dateFmt),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Palette.Muted
+                                )
+                            }
+                            Text("Avisar", color = Palette.Teal, style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
             }
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (Feature.COBROS in c.modules) {
-                StatCard("Cobros vencidos", "$overdue", Icons.Rounded.EventBusy, Palette.Red, Palette.RedSoft, Modifier.weight(1f))
-            }
-            if (Feature.INCIDENCIAS in c.modules) {
-                StatCard("Reportes abiertos", "$openInc", Icons.Rounded.Build, Palette.AmberDark, Palette.AmberSoft, Modifier.weight(1f))
-            }
-            StatCard("Inquilinos", "${Store.tenantsOf(c.id).size}", Icons.Rounded.Groups, Palette.Teal, Palette.TealSoft, Modifier.weight(1f))
-        }
-
         if (meterReq != null) {
-            val tenants = Store.tenantsOf(c.id)
-            val sentCount = tenants.count { t -> Store.readingFor(meterReq.id, t.id) != null }
             AppCard(onClick = { go(Tab.MEDIDORES) }) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     IconBadge(Icons.Rounded.Bolt, Palette.AmberDark, Palette.AmberSoft)
@@ -99,21 +196,20 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
                     }
                     Pill("Ver", Palette.Teal, Palette.TealSoft)
                 }
+                ProgressLine(if (tenants.isEmpty()) 0f else sentCount.toFloat() / tenants.size, Palette.Teal, Palette.TealSoft, 6.dp)
             }
         }
 
-        if (showPersonasShortcut) {
-            SecondaryButton(
-                "Personas y cuentas",
-                { go(Tab.PERSONAS) },
-                Modifier.fillMaxWidth(),
-                icon = Icons.Rounded.Groups
-            )
+        SectionTitle("Inquilinos", trailing = "${tenants.size}")
+        if (tenants.isEmpty()) EmptyState(Icons.Rounded.Groups, "Aún no hay inquilinos.")
+        ranked.take(5).forEach { t -> key(t.id) { TenantRow(t, showClient = false, showContract = true) { UiState.profileId = t.id } } }
+        if (tenants.size > 5) {
+            SecondaryButton("Ver todos los inquilinos", { go(Tab.PERSONAS) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Groups)
         }
 
         if (Feature.AVISOS in c.modules && lastNotices.isNotEmpty()) {
             SectionTitle("Últimos avisos")
-            lastNotices.forEach { NoticeCard(it) }
+            lastNotices.forEach { key(it.id) { NoticeCard(it) } }
         }
     }
 }
@@ -280,7 +376,25 @@ fun AdminAvisos(user: AppUser) {
     var title by remember { mutableStateOf("") }
     var body by remember { mutableStateOf("") }
     var urgent by remember { mutableStateOf(false) }
+    var photo by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
     val list = Store.notices.filter { it.clientId == c.id }.reversed()
+    val picker = rememberPhotoPicker(
+        onResult = { path ->
+            Photos.delete(photo)
+            photo = path
+            error = null
+        },
+        onError = { error = it }
+    )
+    val reset: () -> Unit = {
+        title = ""
+        body = ""
+        urgent = false
+        photo = null
+        error = null
+        showForm = false
+    }
 
     ScreenColumn {
         SectionTitle("Avisos", trailing = "${list.size} publicados")
@@ -296,17 +410,49 @@ fun AdminAvisos(user: AppUser) {
                 ) { category = it }
                 AppTextField(title, { title = it }, "Título", icon = Icons.Rounded.Title)
                 AppTextField(body, { body = it }, "Detalle (fecha, hora, zona)", singleLine = false, minLines = 3)
+
+                Text("Foto o comunicado (opcional)", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
+                Text(
+                    "Por ejemplo, el comunicado del corte de luz o de agua.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Muted
+                )
+                val p = photo
+                if (p != null) {
+                    Box {
+                        PhotoImage(p, Modifier.fillMaxWidth().height(180.dp).clip(RoundedCornerShape(16.dp)))
+                        IconButton(
+                            onClick = {
+                                Photos.delete(p)
+                                photo = null
+                            },
+                            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(34.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
+                        ) {
+                            Icon(Icons.Rounded.Close, contentDescription = "Quitar foto", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SecondaryButton("Tomar foto", picker.camera, Modifier.weight(1f), icon = Icons.Rounded.PhotoCamera)
+                    SecondaryButton("Galería", picker.gallery, Modifier.weight(1f), icon = Icons.Rounded.PhotoLibrary)
+                }
+                error?.let { ErrorText(it) }
+
                 ToggleRow("Marcar como urgente", "Se resalta en la app de los inquilinos.", urgent) { urgent = it }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SecondaryButton("Cancelar", { showForm = false }, Modifier.weight(1f))
+                    SecondaryButton(
+                        "Cancelar",
+                        {
+                            Photos.delete(photo)
+                            reset()
+                        },
+                        Modifier.weight(1f)
+                    )
                     PrimaryButton(
                         "Publicar",
                         {
-                            Store.addNotice(c.id, category, title, body, urgent)
-                            title = ""
-                            body = ""
-                            urgent = false
-                            showForm = false
+                            Store.addNotice(c.id, category, title, body, urgent, photo)
+                            reset()
                         },
                         Modifier.weight(1f),
                         enabled = title.isNotBlank()
@@ -339,6 +485,7 @@ fun AdminPersonas(user: AppUser, onBack: (() -> Unit)? = null) {
             }
         }
         SectionTitle("Personas", trailing = "${admins.size + tenants.size} cuentas")
+        TenantSearch(c.id)
         if (!showForm) {
             PrimaryButton("Agregar persona", { showForm = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PersonAdd)
         } else {
@@ -348,6 +495,6 @@ fun AdminPersonas(user: AppUser, onBack: (() -> Unit)? = null) {
         admins.forEach { key(it.id) { UserRow(it, canDelete = false) } }
         SectionTitle("Inquilinos", trailing = "${tenants.size}")
         if (tenants.isEmpty()) EmptyState(Icons.Rounded.Groups, "Aún no hay inquilinos.")
-        tenants.forEach { key(it.id) { UserRow(it, canDelete = false) } }
+        tenants.forEach { t -> key(t.id) { TenantRow(t, showClient = false, showContract = true) { UiState.profileId = t.id } } }
     }
 }

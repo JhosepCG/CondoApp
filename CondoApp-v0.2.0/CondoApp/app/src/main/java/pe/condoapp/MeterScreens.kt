@@ -37,7 +37,6 @@ import java.util.Locale
 @Composable
 fun TenantMedidor(user: AppUser) {
     val c = Store.clientOf(user) ?: return
-    val context = LocalContext.current
     val req = Store.activeMeterRequest(c.id)
     val sentForReq = req?.let { Store.readingFor(it.id, user.id) }
     val mine = Store.meterReadings.filter { it.userId == user.id }.reversed()
@@ -46,47 +45,17 @@ fun TenantMedidor(user: AppUser) {
     var reading by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var sent by remember { mutableStateOf(false) }
-    var pendingCamera by remember { mutableStateOf<File?>(null) }
-
-    val usePhoto: (String?) -> Unit = { path ->
-        if (path != null) {
+    val picker = rememberPhotoPicker(
+        onResult = { path ->
             Photos.delete(photo)
             photo = path
             error = null
             sent = false
-        } else {
-            error = "No pudimos leer la foto. Inténtalo de nuevo."
-        }
-        Unit
-    }
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
-        val f = pendingCamera
-        if (ok && f != null) usePhoto(Photos.importImage(context, Uri.fromFile(f)))
-        f?.delete()
-        pendingCamera = null
-    }
-    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) usePhoto(Photos.importImage(context, uri))
-    }
-    val openCamera: () -> Unit = {
-        try {
-            val f = Photos.newCameraFile(context)
-            pendingCamera = f
-            cameraLauncher.launch(Photos.uriFor(context, f))
-        } catch (e: Exception) {
-            pendingCamera = null
-            error = "No encontramos una app de cámara. Sube la foto desde tu galería."
-        }
-        Unit
-    }
-    val openGallery: () -> Unit = {
-        try {
-            galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-        } catch (e: Exception) {
-            error = "No pudimos abrir la galería."
-        }
-        Unit
-    }
+        },
+        onError = { error = it }
+    )
+    val openCamera = picker.camera
+    val openGallery = picker.gallery
 
     ScreenColumn {
         when {
@@ -180,7 +149,7 @@ fun TenantMedidor(user: AppUser) {
     }
 }
 
-private fun daysLeft(days: Long): String = when (days) {
+fun daysLeft(days: Long): String = when (days) {
     0L -> "vence hoy"
     1L -> "queda 1 día"
     else -> "quedan $days días"
@@ -380,7 +349,7 @@ private fun PendingMeterRow(t: AppUser, req: MeterRequest) {
 // ------------------------------------------------------------------
 
 @Composable
-private fun PhotoBox(path: String?, height: Dp) {
+fun PhotoBox(path: String?, height: Dp) {
     val shape = RoundedCornerShape(16.dp)
     val img = remember(path) { path?.let { Photos.load(it, 1000) } }
     Box(
@@ -408,11 +377,11 @@ private fun PhotoBox(path: String?, height: Dp) {
     }
 }
 
-private fun requestTitle(m: MeterReading): String =
+fun requestTitle(m: MeterReading): String =
     Store.meterRequests.firstOrNull { it.id == m.requestId }?.title ?: "Envío sin pedido"
 
 @Composable
-private fun ReadingRow(m: MeterReading, showUser: Boolean, onClick: (() -> Unit)?) {
+fun ReadingRow(m: MeterReading, showUser: Boolean, onClick: (() -> Unit)?) {
     val thumb = remember(m.photoPath) { Photos.load(m.photoPath, 240) }
     val detail = buildString {
         append(m.sentAt)
@@ -453,7 +422,7 @@ private fun ReadingRow(m: MeterReading, showUser: Boolean, onClick: (() -> Unit)
 }
 
 @Composable
-private fun MeterPhotoDialog(m: MeterReading, onDismiss: () -> Unit) {
+fun MeterPhotoDialog(m: MeterReading, onDismiss: () -> Unit) {
     val img = remember(m.photoPath) { Photos.load(m.photoPath, 1400) }
     val sub = buildString {
         append("Enviada ").append(m.sentAt)

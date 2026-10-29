@@ -534,6 +534,18 @@ fun NoticeCard(n: Notice, onArchive: (() -> Unit)? = null) {
             if (n.urgent) Pill("Urgente", Palette.AmberDark, Palette.Surface)
         }
         if (n.body.isNotBlank()) Text(n.body, style = MaterialTheme.typography.bodyMedium)
+        if (n.photoPath != null) {
+            var zoom by remember { mutableStateOf(false) }
+            PhotoImage(
+                n.photoPath,
+                Modifier
+                    .fillMaxWidth()
+                    .height(190.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable { zoom = true }
+            )
+            if (zoom) PhotoViewer(n.photoPath, n.title) { zoom = false }
+        }
         if (onArchive != null) {
             TextButton(onClick = onArchive, contentPadding = PaddingValues(0.dp)) {
                 Icon(Icons.Rounded.Archive, contentDescription = null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
@@ -580,6 +592,9 @@ fun AccountForm(fixedClient: Client?, allowedRoles: List<Role>, onDone: () -> Un
     var amount by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val client = fixedClient ?: Store.client(clientId)
+    // Contrato: solo cuando el administrador de una casa registra a un inquilino (el Super Admin no lo ve).
+    val contractForm = rememberContractFormState(null)
+    val withContract = fixedClient != null && fixedClient.template == Template.CASA_DEPAS && role == Role.TENANT
 
     AppCard(padding = 18.dp) {
         Text("Nueva cuenta", style = MaterialTheme.typography.titleLarge)
@@ -608,7 +623,16 @@ fun AccountForm(fixedClient: Client?, allowedRoles: List<Role>, onDone: () -> Un
         if (role == Role.TENANT) {
             AppTextField(unit, { unit = it; error = null }, "Departamento o casa", icon = Icons.Rounded.MeetingRoom)
             AppTextField(responsible, { responsible = it }, "Responsable del domicilio (opcional)", icon = Icons.Rounded.AssignmentInd)
-            if (client != null && Feature.COBROS in client.modules) {
+            if (withContract) {
+                LineDivider()
+                Text("Contrato", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Solo lo ven tú y el inquilino.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Palette.Muted
+                )
+                ContractFields(contractForm)
+            } else if (client != null && Feature.COBROS in client.modules) {
                 AppTextField(
                     amount,
                     { amount = it },
@@ -626,7 +650,9 @@ fun AccountForm(fixedClient: Client?, allowedRoles: List<Role>, onDone: () -> Un
                 {
                     val result = Store.createAccount(
                         name, username, password, role, client?.id,
-                        unit, responsible, amount.toDoubleOrNull()
+                        unit, responsible,
+                        if (withContract) contractForm.rent.toDoubleOrNull() else amount.toDoubleOrNull(),
+                        if (withContract && client != null) contractForm.toContract("", client.id) else null
                     )
                     error = result
                     if (result == null) onDone()
@@ -638,7 +664,13 @@ fun AccountForm(fixedClient: Client?, allowedRoles: List<Role>, onDone: () -> Un
 }
 
 @Composable
-fun UserRow(u: AppUser, canDelete: Boolean, showClient: Boolean = false, canReset: Boolean = true) {
+fun UserRow(
+    u: AppUser,
+    canDelete: Boolean,
+    showClient: Boolean = false,
+    canReset: Boolean = true,
+    onClick: (() -> Unit)? = null
+) {
     var confirm by remember { mutableStateOf(false) }
     var resetOpen by remember { mutableStateOf(false) }
     val c = Store.client(u.clientId)
@@ -647,14 +679,14 @@ fun UserRow(u: AppUser, canDelete: Boolean, showClient: Boolean = false, canRese
         if (u.unit != null) append(" · ").append(u.unit)
         if (showClient && c != null) append(" · ").append(c.name)
     }
-    AppCard(padding = 14.dp) {
+    AppCard(padding = 14.dp, onClick = onClick) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Avatar(u.name, bg = roleBg(u.role), fg = roleFg(u.role))
             Column(Modifier.weight(1f)) {
                 Text(u.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(detail, style = MaterialTheme.typography.bodySmall, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Pill(u.role.label, roleFg(u.role), roleBg(u.role))
+            Pill(roleLabel(u), roleFg(u.role), roleBg(u.role))
             if (canReset) {
                 IconButton(onClick = { resetOpen = true }) {
                     Icon(Icons.Rounded.VpnKey, contentDescription = "Cambiar contraseña", tint = Palette.Muted)
@@ -711,4 +743,31 @@ fun UserRow(u: AppUser, canDelete: Boolean, showClient: Boolean = false, canRese
             }
         )
     }
+}
+
+/** Foto a pantalla completa dentro de un diálogo. */
+@Composable
+fun PhotoViewer(path: String, title: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.Surface,
+        shape = RoundedCornerShape(24.dp),
+        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
+        text = {
+            PhotoImage(
+                path,
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 200.dp, max = 460.dp)
+                    .clip(RoundedCornerShape(16.dp)),
+                maxSide = 1600,
+                scale = androidx.compose.ui.layout.ContentScale.Fit
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", color = Palette.Teal, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    )
 }

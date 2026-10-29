@@ -40,16 +40,42 @@ enum class EmergencyStatus(val label: String) {
     CERRADA("Cerrada")
 }
 
+/** Plan de suscripción que el cliente le paga al Super Admin. */
+enum class Plan(val label: String) {
+    PAGO("De pago"),
+    GRATIS("Gratis · con funciones de pago")
+}
+
 data class Client(
     val id: String,
     val name: String,
     val template: Template,
+    /** Suscripción mensual que paga el owner al Super Admin. */
     val monthlyFee: Double,
     val active: Boolean,
     val modules: Set<Feature>,
     val lateFeePercent: Double = 5.0,
-    val graceDays: Int = 3
+    val graceDays: Int = 3,
+    /** Administrador responsable del pago de la suscripción. */
+    val ownerId: String? = null,
+    val plan: Plan = Plan.PAGO
 )
+
+/** Pago de la suscripción de un mes (period = "2026-10"). Solo lo registra el Super Admin. */
+data class SubscriptionPayment(
+    val id: String,
+    val clientId: String,
+    val period: String,
+    val amount: Double,
+    val paidAt: String
+)
+
+enum class SubStatus(val label: String) {
+    PAGADO("Pagado"),
+    PENDIENTE("Pendiente"),
+    VENCIDO("Vencido"),
+    GRATIS("Gratis")
+}
 
 data class AppUser(
     val id: String,
@@ -93,7 +119,8 @@ data class Notice(
     val title: String,
     val body: String,
     val urgent: Boolean,
-    val createdAt: String
+    val createdAt: String,
+    val photoPath: String? = null
 )
 
 data class Emergency(
@@ -130,6 +157,27 @@ data class MeterReading(
     val sentAt: String,
     val reviewed: Boolean = false
 )
+
+/**
+ * Contrato del inquilino en casas por departamentos.
+ * Solo lo ven el administrador de la casa y el propio inquilino (nunca el Super Admin).
+ */
+data class Contract(
+    val userId: String,
+    val clientId: String,
+    val dni: String,
+    val start: LocalDate,
+    val end: LocalDate,
+    val guarantee: Boolean,
+    val guaranteeAmount: Double,
+    val monthlyRent: Double,
+    val services: List<String>,
+    /** El administrador le indicó al inquilino que debe firmar nuevamente. */
+    val renewRequested: Boolean = false,
+    val renewRequestedAt: String? = null
+)
+
+val CONTRACT_SERVICES = listOf("Agua", "Luz", "Internet", "Cable", "Gas", "Limpieza", "Cochera")
 
 val SERVICES = listOf("Internet", "Cable", "Agua", "Luz", "Otro")
 val NOTICE_CATEGORIES = listOf("Corte de agua", "Corte de luz", "Medidor de luz", "Internet / cable", "Mantenimiento", "Seguridad", "Otro")

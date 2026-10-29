@@ -1,8 +1,11 @@
 package pe.condoapp
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,8 +18,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import java.time.LocalDate
+import kotlinx.coroutines.delay
 
 // ------------------------------------------------------------------
 // INQUILINO · Inicio
@@ -25,7 +30,7 @@ import java.time.LocalDate
 @Composable
 fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
     val c = Store.clientOf(user) ?: return
-    val meterReq = if (Feature.MEDIDORES in c.modules) Store.activeMeterRequest(c.id) else null
+    val meterReq = if (Store.featureOn(c, Feature.MEDIDORES)) Store.activeMeterRequest(c.id) else null
     val meterPending = meterReq != null && Store.readingFor(meterReq.id, user.id) == null
     var showDialog by remember { mutableStateOf(false) }
     var sent by remember { mutableStateOf<String?>(null) }
@@ -40,7 +45,7 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
     }
     val admin = Store.adminsOf(c.id).firstOrNull()
     val responsible = Store.responsibleOf(c.id, user.unit)
-    val lastNotice = Store.notices.lastOrNull { it.clientId == c.id }
+    val slides = if (Feature.AVISOS in c.modules) Store.notices.filter { it.clientId == c.id }.reversed().take(5) else emptyList()
 
     ScreenColumn {
         confirmed.forEach { e ->
@@ -58,6 +63,13 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
                     color = Color.White
                 )
             }
+        }
+
+        val contract = if (c.template == Template.CASA_DEPAS) Store.contractOf(user.id) else null
+        if (contract != null && contract.renewRequested) RenewalBanner(contract)
+
+        if (slides.isNotEmpty()) {
+            NoticeSlider(slides) { go(Tab.AVISOS) }
         }
 
         HeroCard(
@@ -139,6 +151,11 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
             }
         }
 
+        if (contract != null) {
+            SectionTitle("Mi contrato")
+            ContractSummary(contract, showDni = false)
+        }
+
         if (Feature.EMERGENCIA in c.modules) {
             EmergencyButton { showDialog = true }
             sent?.let { msg ->
@@ -160,10 +177,6 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
             )
         }
 
-        if (Feature.AVISOS in c.modules && lastNotice != null) {
-            SectionTitle("Último aviso")
-            NoticeCard(lastNotice)
-        }
     }
 
     if (showDialog) {
@@ -175,6 +188,106 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
             },
             onDismiss = { showDialog = false }
         )
+    }
+}
+
+/** Avisos de la administración en carrusel (pasa solo cada 5 segundos). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NoticeSlider(list: List<Notice>, onOpen: () -> Unit) {
+    val count = list.size
+    val pager = rememberPagerState(pageCount = { count })
+    LaunchedEffect(pager, count) {
+        while (count > 1) {
+            delay(5000)
+            pager.animateScrollToPage((pager.currentPage + 1) % count)
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Avisos", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            Text(
+                "Ver todos",
+                color = Palette.Teal,
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.clip(CircleShape).clickable(onClick = onOpen).padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
+        HorizontalPager(
+            state = pager,
+            contentPadding = PaddingValues(end = if (count > 1) 28.dp else 0.dp),
+            pageSpacing = 12.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) { page ->
+            NoticeSlide(list[page], onOpen)
+        }
+        if (count > 1) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+            ) {
+                repeat(count) { i ->
+                    val sel = pager.currentPage == i
+                    Box(
+                        Modifier
+                            .height(6.dp)
+                            .width(if (sel) 22.dp else 6.dp)
+                            .clip(CircleShape)
+                            .background(if (sel) Palette.Navy else Palette.Line)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoticeSlide(n: Notice, onOpen: () -> Unit) {
+    val shape = RoundedCornerShape(24.dp)
+    val bg = if (n.urgent) listOf(Color(0xFF7A4600), Palette.Amber) else listOf(Palette.Navy, Palette.Teal)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(176.dp)
+            .clip(shape)
+            .background(Brush.linearGradient(bg))
+            .clickable(onClick = onOpen)
+    ) {
+        if (n.photoPath != null) {
+            PhotoImage(n.photoPath, Modifier.fillMaxSize(), maxSide = 1000)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.05f), Color.Black.copy(alpha = 0.75f))))
+            )
+        }
+        Column(
+            Modifier.fillMaxSize().padding(18.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconBadge(noticeIcon(n.category), Color.White, Color.White.copy(alpha = 0.18f), 36.dp)
+                Text(
+                    n.category,
+                    color = Color.White.copy(alpha = 0.85f),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                if (n.urgent) Pill("Urgente", Palette.AmberDark, Color.White)
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(n.title, color = Color.White, style = MaterialTheme.typography.titleLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (n.body.isNotBlank()) {
+                    Text(
+                        n.body,
+                        color = Color.White.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
     }
 }
 
