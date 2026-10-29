@@ -61,7 +61,10 @@ fun tenantStatus(u: AppUser): TenantStatus {
     val openInc = Store.incidents.count {
         it.userId == u.id && !(it.status == IncidentStatus.RESUELTO && it.confirmed == true)
     }
-    val req = if (Store.featureOn(c, Feature.MEDIDORES) && c != null) Store.activeMeterRequest(c.id) else null
+    // El Super Admin no ve información de medidores.
+    val req = if (Store.currentUser?.role != Role.SUPER_ADMIN && Store.featureOn(c, Feature.MEDIDORES) && c != null) {
+        Store.activeMeterRequest(c.id)
+    } else null
     val meter = req?.let { Store.readingFor(it.id, u.id) != null }
     return TenantStatus(pending, pending.count { Store.isOverdue(it) }, openInc, meter)
 }

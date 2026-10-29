@@ -36,7 +36,9 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
     val incidents = Store.incidents.filter { it.userId == u.id }.reversed()
     val readings = Store.meterReadings.filter { it.userId == u.id }.reversed()
     val emergencies = Store.emergencies.filter { it.userId == u.id }.reversed()
-    val req = if (Store.featureOn(c, Feature.MEDIDORES) && c != null) Store.activeMeterRequest(c.id) else null
+    // Medidores: solo el administrador de la casa (el Super Admin no los ve).
+    val showMeters = viewer.role == Role.ADMIN && Store.featureOn(c, Feature.MEDIDORES)
+    val req = if (showMeters && c != null) Store.activeMeterRequest(c.id) else null
     var viewing by remember { mutableStateOf<MeterReading?>(null) }
     var payId by remember { mutableStateOf<String?>(null) }
 
@@ -85,7 +87,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
                 },
                 Modifier.weight(1f)
             )
-            if (Store.featureOn(c, Feature.MEDIDORES)) {
+            if (showMeters) {
                 StatusTile(
                     "Medidor",
                     when (st.meterSent) {
@@ -124,7 +126,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
             }
         }
 
-        if (Store.featureOn(c, Feature.MEDIDORES)) {
+        if (showMeters) {
             SectionTitle("Medidor de luz", trailing = req?.let { "Hasta ${it.due.format(dateFmt)}" })
             if (req != null && st.meterSent == false) {
                 AppCard(color = Palette.AmberSoft, borderColor = Palette.AmberSoft, padding = 14.dp) {

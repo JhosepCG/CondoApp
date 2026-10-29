@@ -1,9 +1,15 @@
-# Convive v0.6.0
+# Convive v0.6.1
 
 > Antes "CondoApp". La app ahora se llama **Convive**.
 
 App Android (Kotlin + Jetpack Compose) para condominios, edificios y casas que se alquilan por departamento.
 Una sola app con **3 roles**: Super Admin, Administrador e Inquilino.
+
+## Novedades de la v0.6.1
+
+- Inicio del Super Admin más simple: suscripciones al mes, usuarios, suscripciones por cobrar,
+  ingresos por cliente y la dona de suscripciones del mes.
+- El Super Admin ya no ve alertas, reportes, usuarios por cliente ni nada de medidores de luz.
 
 ## Novedades de la v0.6.0
 

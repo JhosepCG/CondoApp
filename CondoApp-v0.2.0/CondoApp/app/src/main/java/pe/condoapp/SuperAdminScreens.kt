@@ -37,11 +37,6 @@ fun SuperResumen(user: AppUser, go: (Tab) -> Unit) {
     val freeCount = active.count { it.plan == Plan.GRATIS }
     val income = paying.sumOf { it.monthlyFee }
     val people = Store.users.count { it.role != Role.SUPER_ADMIN }
-    val tenantsTotal = Store.users.count { it.role == Role.TENANT }
-    val alerts = Store.emergencies.count {
-        it.status == EmergencyStatus.PENDIENTE || it.status == EmergencyStatus.CONFIRMADA
-    }
-    val openReports = Store.incidents.count { !(it.status == IncidentStatus.RESUELTO && it.confirmed == true) }
     val period = Store.periodOf()
     val monthName = java.time.LocalDate.now().month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale("es", "PE"))
     val paid = paying.filter { Store.subStatus(it, period) == SubStatus.PAGADO }.sumOf { Store.subPayment(it.id, period)?.amount ?: it.monthlyFee }
@@ -49,7 +44,6 @@ fun SuperResumen(user: AppUser, go: (Tab) -> Unit) {
     val pendingAmt = paying.filter { Store.subStatus(it, period) == SubStatus.PENDIENTE }.sumOf { it.monthlyFee }
     val cobranzaTotal = paid + overdue + pendingAmt
     val maxFee = Store.clients.filter { it.plan == Plan.PAGO }.maxOfOrNull { it.monthlyFee } ?: 0.0
-    val houses = Store.clients.filter { Store.featureOn(it, Feature.MEDIDORES) }
 
     ScreenColumn {
         TenantSearch(null, "Buscar inquilino en todos los clientes")
@@ -76,10 +70,6 @@ fun SuperResumen(user: AppUser, go: (Tab) -> Unit) {
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatCard("Usuarios en la app", "$people", Icons.Rounded.Groups, Palette.Teal, Palette.TealSoft, Modifier.weight(1f))
-            StatCard("Alertas abiertas", "$alerts", Icons.Rounded.Warning, Palette.Red, Palette.RedSoft, Modifier.weight(1f))
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard("Reportes abiertos", "$openReports", Icons.Rounded.Build, Palette.AmberDark, Palette.AmberSoft, Modifier.weight(1f))
             StatCard("Suscripciones por cobrar", money(overdue + pendingAmt), Icons.Rounded.Payments, Palette.Navy, Palette.NavySoft, Modifier.weight(1f))
         }
 
@@ -138,92 +128,6 @@ fun SuperResumen(user: AppUser, go: (Tab) -> Unit) {
                     LegendRow(Palette.Green, "Pagado", money(paid))
                     LegendRow(Palette.Amber, "Pendiente", money(pendingAmt))
                     LegendRow(Palette.Red, "Vencido", money(overdue))
-                }
-            }
-        }
-
-        SectionTitle("Pagos de suscripción")
-        Store.clients.forEach { c -> key(c.id) { SubscriptionRow(c) } }
-
-        // Usuarios por cliente (barras verticales)
-        SectionTitle("Usuarios por cliente")
-        AppCard(padding = 18.dp) {
-            val counts = Store.clients.map { c -> Triple(c, Store.adminsOf(c.id).size, Store.tenantsOf(c.id).size) }
-            val maxCount = (counts.maxOfOrNull { it.second + it.third } ?: 0).coerceAtLeast(1)
-            Row(
-                Modifier.fillMaxWidth().height(150.dp),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                counts.forEach { (c, admins, tenants) ->
-                    Column(
-                        Modifier.weight(1f).fillMaxHeight(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Bottom
-                    ) {
-                        Text("${admins + tenants}", style = MaterialTheme.typography.labelLarge)
-                        Spacer(Modifier.height(4.dp))
-                        val total = admins + tenants
-                        val h = 120f * total / maxCount
-                        Column(
-                            Modifier
-                                .width(28.dp)
-                                .height(h.coerceAtLeast(4f).dp)
-                                .clip(RoundedCornerShape(topStart = 8.dp, topEnd = 8.dp, bottomStart = 4.dp, bottomEnd = 4.dp))
-                        ) {
-                            if (total > 0) {
-                                Box(Modifier.fillMaxWidth().weight(admins.toFloat().coerceAtLeast(0.001f)).background(Palette.Navy))
-                                Box(Modifier.fillMaxWidth().weight(tenants.toFloat().coerceAtLeast(0.001f)).background(Palette.Teal))
-                            } else {
-                                Box(Modifier.fillMaxSize().background(Palette.Line))
-                            }
-                        }
-                    }
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                counts.forEach { (c, _, _) ->
-                    Text(
-                        c.name,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Palette.Muted,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                LegendRow(Palette.Navy, "Administradores", null)
-                LegendRow(Palette.Teal, "Inquilinos", null)
-            }
-        }
-
-        // Medidores en casas
-        if (houses.isNotEmpty()) {
-            SectionTitle("Medidores de luz", trailing = "Casas")
-            houses.forEach { c ->
-                key(c.id) {
-                    val req = Store.activeMeterRequest(c.id)
-                    val tenants = Store.tenantsOf(c.id)
-                    val sent = req?.let { r -> tenants.count { t -> Store.readingFor(r.id, t.id) != null } } ?: 0
-                    AppCard(padding = 14.dp) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            IconBadge(Icons.Rounded.Bolt, Palette.AmberDark, Palette.AmberSoft, 38.dp)
-                            Column(Modifier.weight(1f)) {
-                                Text(c.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(
-                                    if (req == null) "Sin pedido activo" else "$sent de ${tenants.size} fotos · hasta el ${req.due.format(dateFmt)}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Palette.Muted
-                                )
-                            }
-                        }
-                        if (req != null) {
-                            ProgressLine(if (tenants.isEmpty()) 0f else sent.toFloat() / tenants.size, Palette.Teal, Palette.TealSoft, 6.dp)
-                        }
-                    }
                 }
             }
         }
