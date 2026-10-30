@@ -57,7 +57,7 @@ fun tenureLabel(since: LocalDate): String {
     }
 }
 
-fun serviceIcon(s: String): ImageVector = when {
+fun contractServiceIcon(s: String): ImageVector = when {
     s.startsWith("Agua") -> Ic.Drop
     s.startsWith("Luz") -> Ic.Bolt
     s.startsWith("Internet") -> Ic.Wifi
@@ -239,14 +239,14 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
                     else -> "No ha registrado algún reporte"
                 },
                 modifier = Modifier.enter(i++),
-                trailing = if (isAdmin) ({
+                trailing = if (!isAdmin) null else @Composable {
                     Text(
                         "Reportar",
                         color = Palette.Teal,
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
                         modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { reporting = true }.padding(6.dp)
                     )
-                }) else null
+                }
             )
         }
 
@@ -407,7 +407,7 @@ private fun ContractCard(ct: Contract, modifier: Modifier, onNotSigned: () -> Un
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(serviceIcon(s), contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(16.dp))
+                            Icon(contractServiceIcon(s), contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(16.dp))
                             Text(s, color = Palette.Teal, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.Medium))
                         }
                     }

@@ -27,7 +27,13 @@ jobs:
           gradle-version: 8.10.2
 
       - name: Compilar APK
-        run: gradle assembleDebug --no-daemon
+        run: |
+          set +e
+          gradle assembleDebug --no-daemon 2>&1 | tee build.log
+          st=${PIPESTATUS[0]}
+          # Mostrar los errores de Kotlin como anotaciones (se ven en el resumen de la compilación)
+          grep -E "^e: " build.log | head -20 | sed 's/^/::error::/'
+          exit $st
 
       - name: Renombrar APK
         run: cp app/build/outputs/apk/debug/app-debug.apk Convive.apk
