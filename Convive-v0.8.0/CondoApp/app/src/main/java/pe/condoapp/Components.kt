@@ -511,7 +511,9 @@ fun ChargeCard(ch: Charge, onPay: (() -> Unit)? = null) {
             Column(Modifier.weight(1f)) {
                 Text(ch.unit, style = MaterialTheme.typography.titleMedium)
                 Text(
-                    "${ch.concept} · vence ${ch.due.format(dateFmt)}",
+                    if (ch.paid) "${ch.concept} · se pagó el ${(ch.paidOn ?: ch.due).format(dateFmt)}"
+                    else if (Store.isOverdue(ch)) "${ch.concept} · venció el ${ch.due.format(dateFmt)}"
+                    else "${ch.concept} · vence ${ch.due.format(dateFmt)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted
                 )

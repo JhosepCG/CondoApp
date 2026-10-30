@@ -135,6 +135,26 @@ fun AdminHome(user: AppUser, go: (Tab) -> Unit) {
     }
 }
 
+/** Encabezado con degradado para las demás pantallas del administrador. */
+@Composable
+fun AdminTopHeader(user: AppUser, go: (Tab) -> Unit) {
+    LightStatusBarIcons()
+    val c = Store.clientOf(user)
+    val badge = if (c == null) 0 else
+        Store.emergencies.count { it.clientId == c.id && it.status == EmergencyStatus.PENDIENTE } +
+            Store.incidents.count { it.clientId == c.id && !(it.status == IncidentStatus.RESUELTO && it.confirmed == true) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            .background(BrandGradient)
+            .statusBarsPadding()
+            .padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 20.dp)
+    ) {
+        AdminHeroHeader(user, badge) { if (Tab.SERVICIOS in tabsFor(user)) go(Tab.SERVICIOS) }
+    }
+}
+
 @Composable
 private fun AdminHeroHeader(user: AppUser, badge: Int, onBell: () -> Unit) {
     var confirmLogout by remember { mutableStateOf(false) }
@@ -328,7 +348,7 @@ private fun SearchResults(c: Client, q: String) {
     }
 }
 
-private class Tag(val text: String, val fg: Color, val bg: Color)
+private class Tag(val text: String, val fg: Color, val bg: Color, val icon: ImageVector)
 
 private fun tagsFor(u: AppUser): List<Tag> {
     val c = Store.client(u.clientId)
@@ -337,25 +357,25 @@ private fun tagsFor(u: AppUser): List<Tag> {
     if (c?.template == Template.CASA_DEPAS) {
         Store.contractOf(u.id)?.let { ct ->
             when {
-                Store.contractExpired(ct) -> out += Tag("Contrato vencido", Palette.Red, Palette.RedSoft)
-                Store.contractEndingSoon(ct) -> out += Tag("Contrato por vencer", Palette.AmberDark, Palette.AmberSoft)
+                Store.contractExpired(ct) -> out += Tag("Contrato vencido", Palette.Red, Palette.RedSoft, Ic.Doc)
+                Store.contractEndingSoon(ct) -> out += Tag("Contrato por vencer", Palette.AmberDark, Palette.AmberSoft, Ic.Doc)
             }
         }
     }
     if (Store.featureOn(c, Feature.COBROS)) {
         out += when {
-            st.overdue > 0 -> Tag("Pago vencido", Palette.Red, Palette.RedSoft)
-            !st.upToDate -> Tag("Pago pendiente", Palette.AmberDark, Palette.AmberSoft)
-            else -> Tag("Pago al día", Palette.Teal, Palette.TealSoft)
+            st.overdue > 0 -> Tag("Pago vencido", Palette.Red, Palette.RedSoft, Ic.AlertCircle)
+            !st.upToDate -> Tag("Pago pendiente", Palette.AmberDark, Palette.AmberSoft, Ic.Clock)
+            else -> Tag("Pago al día", Palette.Teal, Palette.TealSoft, Ic.CheckCircle)
         }
     }
     when (st.meterSent) {
-        true -> out += Tag("Medidor", Palette.Teal, Palette.TealSoft)
-        false -> out += Tag("Falta medidor", Palette.AmberDark, Palette.AmberSoft)
+        true -> out += Tag("Medidor", Palette.Teal, Palette.TealSoft, Ic.Bolt)
+        false -> out += Tag("Falta medidor", Palette.AmberDark, Palette.AmberSoft, Ic.Bolt)
         null -> Unit
     }
     if (st.openIncidents > 0) {
-        out += Tag(if (st.openIncidents == 1) "1 reporte" else "${st.openIncidents} reportes", Palette.AmberDark, Palette.AmberSoft)
+        out += Tag(if (st.openIncidents == 1) "1 reporte" else "${st.openIncidents} reportes", Palette.AmberDark, Palette.AmberSoft, Ic.AlertOctagon)
     }
     return out
 }
@@ -393,15 +413,14 @@ private fun TenantResultCard(u: AppUser, index: Int, onClick: () -> Unit) {
         if (tags.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 tags.forEach { t ->
-                    Text(
-                        t.text,
-                        color = t.fg,
-                        style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium),
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(t.bg)
-                            .padding(horizontal = 10.dp, vertical = 3.dp)
-                    )
+                    Row(
+                        Modifier.clip(CircleShape).background(t.bg).padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)
+                    ) {
+                        Icon(t.icon, contentDescription = null, tint = t.fg, modifier = Modifier.size(14.dp))
+                        Text(t.text, color = t.fg, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp, fontWeight = FontWeight.Medium))
+                    }
                 }
             }
         }

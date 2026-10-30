@@ -145,7 +145,9 @@ data class Charge(
     val concept: String,
     val amount: Double,
     val due: LocalDate,
-    val paid: Boolean = false
+    val paid: Boolean = false,
+    /** Día en que se registró el pago. */
+    val paidOn: LocalDate? = null
 )
 
 data class Incident(
@@ -223,7 +225,9 @@ data class Contract(
     val services: List<String>,
     /** El administrador le indicó al inquilino que debe firmar nuevamente. */
     val renewRequested: Boolean = false,
-    val renewRequestedAt: String? = null
+    val renewRequestedAt: String? = null,
+    /** Desde cuándo vive en el depa (no cambia al renovar). */
+    val since: LocalDate? = null
 )
 
 val CONTRACT_SERVICES = listOf("Agua", "Luz", "Internet", "Cable", "Gas", "Limpieza", "Cochera")

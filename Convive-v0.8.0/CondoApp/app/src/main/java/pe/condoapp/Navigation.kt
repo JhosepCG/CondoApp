@@ -148,14 +148,7 @@ private fun MainScaffold(user: AppUser) {
             Box(Modifier.statusBarsPadding()) { SuperHeader(user) }
         } else if (user.role == Role.ADMIN) {
             if (!adminHome) {
-                Box(Modifier.statusBarsPadding()) {
-                    SuperHeader(
-                        user,
-                        subtitle = "Administrador",
-                        unread = pendingAlerts,
-                        onBell = { go(Tab.PANEL) }
-                    )
-                }
+                AdminTopHeader(user, go)
             }
         } else Box(Modifier.statusBarsPadding()) {
             TopBar(

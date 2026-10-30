@@ -48,7 +48,7 @@ object Store {
 
     private var prefs: SharedPreferences? = null
     private var seq = 100
-    private const val DATA_VERSION = 11
+    private const val DATA_VERSION = 12
 
     fun init(context: Context) {
         if (prefs != null) return
@@ -667,6 +667,71 @@ object Store {
         return null
     }
 
+    /** Fecha desde la que vive el inquilino (primer contrato). */
+    fun tenantSince(userId: String): LocalDate? = contractOf(userId)?.let { it.since ?: it.start }
+
+    /** Próximo cobro sin pagar del depa del inquilino (el más antiguo primero). */
+    fun nextUnpaid(u: AppUser): Charge? =
+        charges.filter { it.clientId == u.clientId && it.unit == u.unit && !it.paid }.minByOrNull { it.due }
+
+    /** Último cobro pagado del depa del inquilino. */
+    fun lastPaid(u: AppUser): Charge? =
+        charges.filter { it.clientId == u.clientId && it.unit == u.unit && it.paid }.maxByOrNull { it.paidOn ?: it.due }
+
+    /**
+     * El administrador edita la información del inquilino: datos, foto, contrato y fecha de pago.
+     * Devuelve un mensaje de error o null si se guardó.
+     */
+    fun updateTenantInfo(
+        id: String,
+        name: String,
+        dni: String,
+        phone: String,
+        photoPath: String?,
+        rent: Double?,
+        guarantee: Double?,
+        services: List<String>?,
+        payDate: LocalDate?
+    ): String? {
+        val u = users.firstOrNull { it.id == id } ?: return "No encontramos al inquilino."
+        val n = name.trim()
+        if (n.isEmpty()) return "Escribe el nombre del inquilino."
+        val d = dni.trim()
+        if (d.isNotEmpty() && (d.length != 8 || !d.all { it.isDigit() })) return "El DNI debe tener 8 números."
+        if (d.isNotEmpty() && users.any { it.id != id && it.dni == d }) return "Ya existe un usuario con ese DNI."
+        val ph = phone.filter { it.isDigit() }
+        if (ph.isNotEmpty() && ph.length != 9) return "El celular debe tener 9 números."
+        if (rent != null && rent <= 0) return "Escribe la mensualidad."
+        val i = users.indexOfFirst { it.id == id }
+        users[i] = u.copy(name = n, dni = d.ifEmpty { null }, phone = ph.ifEmpty { null }, photoPath = photoPath)
+        val ci = contracts.indexOfFirst { it.userId == id }
+        if (ci >= 0) {
+            val ct = contracts[ci]
+            contracts[ci] = ct.copy(
+                dni = d.ifEmpty { ct.dni },
+                monthlyRent = rent ?: ct.monthlyRent,
+                guarantee = (guarantee ?: ct.guaranteeAmount) > 0,
+                guaranteeAmount = guarantee ?: ct.guaranteeAmount,
+                services = services ?: ct.services
+            )
+        }
+        if (payDate != null && u.unit != null && u.clientId != null) {
+            val next = nextUnpaid(u)
+            if (next != null) {
+                val k = charges.indexOfFirst { it.id == next.id }
+                charges[k] = next.copy(due = payDate, amount = if (rent != null && next.concept.startsWith("Renta")) rent else next.amount)
+            } else {
+                val cl = client(u.clientId)
+                val concept = if (cl?.template == Template.CASA_DEPAS) "Renta mensual" else "Cuota de mantenimiento"
+                val amount = rent ?: contractOf(id)?.monthlyRent
+                    ?: charges.filter { it.clientId == u.clientId && it.unit == u.unit }.maxByOrNull { it.due }?.amount ?: 0.0
+                if (amount > 0) charges.add(Charge(nextId(), u.clientId, u.unit, concept, amount, payDate))
+            }
+        }
+        save()
+        return null
+    }
+
     /** El administrador le indica al inquilino que debe firmar nuevamente el contrato. */
     fun requestRenewal(userId: String) {
         val i = contracts.indexOfFirst { it.userId == userId }
@@ -682,7 +747,7 @@ object Store {
         if (i >= 0) {
             val old = contracts[i]
             val from = if (old.end.isAfter(LocalDate.now())) old.end else LocalDate.now()
-            contracts[i] = old.copy(start = from, end = from.plusMonths(months), renewRequested = false, renewRequestedAt = null)
+            contracts[i] = old.copy(start = from, end = from.plusMonths(months), renewRequested = false, renewRequestedAt = null, since = old.since ?: old.start)
             save()
         }
     }
@@ -703,7 +768,7 @@ object Store {
     fun markPaid(id: String) {
         val i = charges.indexOfFirst { it.id == id }
         if (i >= 0) {
-            charges[i] = charges[i].copy(paid = true)
+            charges[i] = charges[i].copy(paid = true, paidOn = LocalDate.now())
             save()
         }
     }
@@ -886,10 +951,10 @@ object Store {
                 Charge("ch1", "c1", "Dpto 301", "Cuota de mantenimiento", 180.0, today.plusDays(5)),
                 Charge("ch2", "c1", "Dpto 302", "Cuota de mantenimiento", 180.0, today.minusDays(6)),
                 Charge("ch3", "c2", "2° Piso B", "Renta mensual", 650.0, today.plusDays(3)),
-                Charge("ch4", "c2", "2° Piso A", "Renta mensual", 600.0, today.minusDays(2), paid = true),
+                Charge("ch4", "c2", "2° Piso A", "Renta mensual", 600.0, today.minusDays(2), paid = true, paidOn = today.minusDays(3)),
                 Charge("ch5", "c2", "3° Piso A", "Renta mensual", 700.0, today.minusDays(4)),
-                Charge("ch6", "c1", "Dpto 301", "Cuota de mantenimiento", 180.0, today.minusDays(30), paid = true),
-                Charge("ch7", "c1", "Dpto 302", "Cuota de mantenimiento", 180.0, today.minusDays(36), paid = true)
+                Charge("ch6", "c1", "Dpto 301", "Cuota de mantenimiento", 180.0, today.minusDays(30), paid = true, paidOn = today.minusDays(31)),
+                Charge("ch7", "c1", "Dpto 302", "Cuota de mantenimiento", 180.0, today.minusDays(36), paid = true, paidOn = today.minusDays(35))
             )
         )
         incidents.add(
@@ -993,6 +1058,7 @@ object Store {
             j.put("id", c.id); j.put("clientId", c.clientId); j.put("unit", c.unit)
             j.put("concept", c.concept); j.put("amount", c.amount)
             j.put("due", c.due.toString()); j.put("paid", c.paid)
+            c.paidOn?.let { j.put("paidOn", it.toString()) }
             cha.put(j)
         }
         o.put("charges", cha)
@@ -1055,6 +1121,7 @@ object Store {
             j.put("start", c.start.toString()); j.put("end", c.end.toString())
             j.put("guarantee", c.guarantee); j.put("guaranteeAmount", c.guaranteeAmount)
             j.put("rent", c.monthlyRent)
+            c.since?.let { j.put("since", it.toString()) }
             val sv = JSONArray()
             c.services.forEach { sv.put(it) }
             j.put("services", sv)
@@ -1140,7 +1207,8 @@ object Store {
         val ch = o.getJSONArray("charges").objects().map { j ->
             Charge(
                 j.getString("id"), j.getString("clientId"), j.getString("unit"), j.getString("concept"),
-                j.getDouble("amount"), LocalDate.parse(j.getString("due")), j.getBoolean("paid")
+                j.getDouble("amount"), LocalDate.parse(j.getString("due")), j.getBoolean("paid"),
+                j.str("paidOn")?.let { LocalDate.parse(it) }
             )
         }
         val inc = o.getJSONArray("incidents").objects().map { j ->
@@ -1204,7 +1272,8 @@ object Store {
                 monthlyRent = j.getDouble("rent"),
                 services = (0 until sv.length()).map { sv.getString(it) },
                 renewRequested = j.optBoolean("renewRequested"),
-                renewRequestedAt = j.str("renewRequestedAt")
+                renewRequestedAt = j.str("renewRequestedAt"),
+                since = j.str("since")?.let { LocalDate.parse(it) }
             )
         }
         val ob = o.optJSONArray("onboarded") ?: JSONArray()
