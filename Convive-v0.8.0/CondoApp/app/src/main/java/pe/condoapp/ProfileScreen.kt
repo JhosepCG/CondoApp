@@ -239,8 +239,8 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
                     else -> "No ha registrado algún reporte"
                 },
                 modifier = Modifier.enter(i++),
-                trailing = if (!isAdmin) null else @Composable {
-                    Text(
+                trailing = {
+                    if (isAdmin) Text(
                         "Reportar",
                         color = Palette.Teal,
                         style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
