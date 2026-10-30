@@ -106,7 +106,10 @@ object Store {
     /** Devuelve null si todo salió bien, o el mensaje de error. */
     /** Con remember = false la sesión no se guarda y se pedirá ingresar al volver a abrir la app. */
     fun login(username: String, password: String, remember: Boolean = true): String? {
-        val u = users.firstOrNull { it.username.equals(username.trim(), ignoreCase = true) }
+        val key = username.trim()
+        // Se puede ingresar con el usuario o con el N° de DNI (inquilinos con contrato registrado).
+        val u = users.firstOrNull { it.username.equals(key, ignoreCase = true) }
+            ?: contracts.firstOrNull { it.dni == key }?.let { c -> users.firstOrNull { it.id == c.userId } }
             ?: return "No encontramos ese usuario."
         if (u.password != password) return "La contraseña no es correcta."
         if (u.role != Role.SUPER_ADMIN && client(u.clientId)?.active != true) {

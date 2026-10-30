@@ -1,9 +1,17 @@
-# Convive v0.6.1
+# Convive v0.6.2
 
 > Antes "CondoApp". La app ahora se llama **Convive**.
 
 App Android (Kotlin + Jetpack Compose) para condominios, edificios y casas que se alquilan por departamento.
 Una sola app con **3 roles**: Super Admin, Administrador e Inquilino.
+
+## Novedades de la v0.6.2
+
+- **Ingreso según Figma** ("01 · Ingreso"): login, escribir DNI/usuario, escribir contraseña,
+  "Validando tus datos", "Contraseña inválida" y "¿Olvidaste tu contraseña?" con ilustraciones.
+- Se puede ingresar con el **usuario o el N° de DNI** (inquilinos con contrato, p. ej. `70123456` = Marco).
+- **Pantalla completa en cualquier Android**: la app dibuja detrás de la barra de estado y de navegación,
+  respeta notch, gestos y teclado, y el login se reparte por porcentaje del alto (en tablets se centra).
 
 ## Novedades de la v0.6.1
 

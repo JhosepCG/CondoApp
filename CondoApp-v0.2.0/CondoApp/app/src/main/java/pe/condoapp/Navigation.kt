@@ -102,6 +102,7 @@ private fun MainScaffold(user: AppUser) {
             .fillMaxSize()
             .background(Palette.Bg)
             .systemBarsPadding()
+            .imePadding()
     ) {
         TopBar(
             user = user,
