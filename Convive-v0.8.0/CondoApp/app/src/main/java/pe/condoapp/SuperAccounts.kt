@@ -44,7 +44,7 @@ fun RegresarButton(onBack: () -> Unit, modifier: Modifier = Modifier) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Icon(Icons.Rounded.ArrowBackIosNew, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(18.dp))
+        Icon(Ic.ChevronLeft, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(18.dp))
         Text("Regresar", color = Palette.Teal, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Medium))
     }
 }
@@ -139,7 +139,7 @@ private fun AccountRow(u: AppUser, modifier: Modifier, onClick: () -> Unit) {
             Spacer(Modifier.height(2.dp))
             StatusTag(roleName(u.role), fg, bg)
         }
-        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
+        Icon(Ic.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
     }
 }
 
@@ -149,7 +149,7 @@ fun AccountInfo(me: AppUser, userId: String, onBack: () -> Unit) {
     androidx.activity.compose.BackHandler(onBack = onBack)
     val u = Store.users.firstOrNull { it.id == userId }
     if (u == null) {
-        ScreenColumn { RegresarButton(onBack); EmptyState(Icons.Rounded.PersonOff, "Esta cuenta ya no existe.") }
+        ScreenColumn { RegresarButton(onBack); EmptyState(Ic.UserX, "Esta cuenta ya no existe.") }
         return
     }
     val client = Store.client(u.clientId)
@@ -189,7 +189,7 @@ fun AccountInfo(me: AppUser, userId: String, onBack: () -> Unit) {
                     IconButton(onClick = {
                         UiState.deleteRequest = DeleteRequest(u.name, { Store.deleteAccount(u.id) }, after = onBack)
                     }) {
-                        Icon(Icons.Outlined.Delete, contentDescription = "Eliminar cuenta", tint = Palette.Ink, modifier = Modifier.size(26.dp))
+                        Icon(Ic.Trash, contentDescription = "Eliminar cuenta", tint = Palette.Ink, modifier = Modifier.size(26.dp))
                     }
                 }
             }
@@ -230,20 +230,20 @@ fun AccountInfo(me: AppUser, userId: String, onBack: () -> Unit) {
                 Role.SUPER_ADMIN -> {}
             }
 
-            AppTextField(name, { name = it; error = null }, "Nombre completo", icon = Icons.Rounded.PersonOutline)
-            AppTextField(username, { username = it.replace(" ", ""); error = null }, "Usuario", icon = Icons.Rounded.AlternateEmail)
-            AppTextField(password, { password = it; error = null }, "Contraseña", icon = Icons.Rounded.LockOpen, password = true)
+            AppTextField(name, { name = it; error = null }, "Nombre completo", icon = Ic.User)
+            AppTextField(username, { username = it.replace(" ", ""); error = null }, "Usuario", icon = Ic.UserSquare)
+            AppTextField(password, { password = it; error = null }, "Contraseña", icon = Ic.Unlock, password = true)
             if (u.role == Role.ADMIN && client != null) {
                 AppTextField(
                     clientName, { clientName = it; error = null },
                     if (client.template == Template.CONDOMINIO) "Nombre del condominio" else "Nombre de la casa",
-                    icon = Icons.Rounded.MeetingRoom
+                    icon = Ic.Home
                 )
                 AppTextField(
                     fee,
                     { fee = it.filter { ch -> ch.isDigit() || ch == '.' }; error = null },
                     if (planSel?.cycle == Plan.ANUAL) "Cuota anual (S/)" else "Cuota mensual (S/)",
-                    icon = Icons.Rounded.CreditCard,
+                    icon = Ic.Card,
                     keyboardType = KeyboardType.Decimal
                 )
             }
@@ -276,7 +276,7 @@ fun AccountInfo(me: AppUser, userId: String, onBack: () -> Unit) {
 
     if (saved) {
         ResultDialog(
-            icon = Icons.Rounded.CheckCircle,
+            icon = Ic.CheckCircle,
             iconTint = Palette.Green,
             iconBg = Palette.GreenSoft,
             title = "Cambios guardados",

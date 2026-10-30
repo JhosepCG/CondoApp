@@ -111,7 +111,7 @@ private fun PlanRow(p: SubscriptionPlan, modifier: Modifier, onClick: () -> Unit
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                if (p.cycle == Plan.GRATIS && !p.trial) Icons.Rounded.VolunteerActivism else Icons.Rounded.MonetizationOn,
+                if (p.cycle == Plan.GRATIS && !p.trial) Ic.HandHeart else Ic.Dollar,
                 contentDescription = null,
                 tint = Palette.Teal,
                 modifier = Modifier.size(26.dp)
@@ -121,7 +121,7 @@ private fun PlanRow(p: SubscriptionPlan, modifier: Modifier, onClick: () -> Unit
             Text(p.name, style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp, fontWeight = FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(planSubtitle(p), style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Icon(Icons.Rounded.ChevronRight, contentDescription = "Editar plan", tint = Palette.Ink, modifier = Modifier.size(26.dp))
+        Icon(Ic.ChevronRight, contentDescription = "Editar plan", tint = Palette.Ink, modifier = Modifier.size(26.dp))
     }
 }
 
@@ -166,14 +166,14 @@ private fun PlanEditor(plan: SubscriptionPlan?, onClose: () -> Unit) {
             )
             AppTextField(
                 name, { name = it; error = null }, "Nombre del plan",
-                icon = Icons.Rounded.PersonOutline,
+                icon = Ic.User,
                 placeholder = "Ej. " + (plan?.name ?: "Plan mayo")
             )
             AppTextField(
                 price,
                 { price = it.filter { ch -> ch.isDigit() || ch == '.' }; error = null },
                 if (annual) "Anualidad (S/)" else "Mensualidad (S/)",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Decimal
             )
             SectionLabel("Funciones del cliente")
@@ -272,7 +272,7 @@ fun SuperMiPerfil(user: AppUser, go: (Tab) -> Unit) {
                         .clickable { photoMenu = "cover" },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Rounded.Edit, contentDescription = "Cambiar portada", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Ic.Edit, contentDescription = "Cambiar portada", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
             }
             Box(
@@ -291,7 +291,7 @@ fun SuperMiPerfil(user: AppUser, go: (Tab) -> Unit) {
             }
         }
 
-        message?.let { Pill(it, Palette.Teal, Palette.TealSoft, Icons.Rounded.CheckCircle) }
+        message?.let { Pill(it, Palette.Teal, Palette.TealSoft, Ic.CheckCircle) }
 
         // Secciones
         Column(
@@ -303,11 +303,11 @@ fun SuperMiPerfil(user: AppUser, go: (Tab) -> Unit) {
                 .border(1.dp, Palette.Line, RoundedCornerShape(16.dp))
                 .padding(horizontal = 16.dp, vertical = 6.dp)
         ) {
-            ProfileRow(Icons.Outlined.Person, "Editar información") { editInfo = true }
+            ProfileRow(Ic.User, "Editar información") { editInfo = true }
             LineDivider()
-            ProfileRow(Icons.Outlined.PersonAddAlt, "Crear super admin") { createAdmin = true }
+            ProfileRow(Ic.UserPlus, "Crear super admin") { createAdmin = true }
             LineDivider()
-            ProfileRow(Icons.Outlined.Notifications, "Notificaciones push", trailing = {
+            ProfileRow(Ic.Bell, "Notificaciones push", trailing = {
                 AppSwitch(pushOn) { on ->
                     pushOn = on
                     Store.setPush(on)
@@ -318,7 +318,7 @@ fun SuperMiPerfil(user: AppUser, go: (Tab) -> Unit) {
                 }
             })
             LineDivider()
-            ProfileRow(Icons.Rounded.Fingerprint, "Ingresar con huella dactilar", trailing = {
+            ProfileRow(Ic.Fingerprint, "Ingresar con huella dactilar", trailing = {
                 AppSwitch(bioOn, enabled = bioStatus != Biometric.Status.NO_HARDWARE) { on ->
                     if (!on) {
                         Store.setBiometricUser(null)
@@ -331,7 +331,7 @@ fun SuperMiPerfil(user: AppUser, go: (Tab) -> Unit) {
                 }
             })
             LineDivider()
-            ProfileRow(Icons.Outlined.Groups, "Cuentas y accesos") { go(Tab.CUENTAS) }
+            ProfileRow(Ic.Users, "Cuentas y accesos") { go(Tab.CUENTAS) }
         }
         if (bioStatus == Biometric.Status.NO_HARDWARE) {
             Text("Este teléfono no tiene lector de huella.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -353,8 +353,8 @@ fun SuperMiPerfil(user: AppUser, go: (Tab) -> Unit) {
         Dialog(onDismissRequest = { photoMenu = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             DialogCard {
                 Text(if (kind == "cover") "Foto de portada" else "Foto de perfil", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
-                SecondaryButton("Tomar foto", { target = kind; photoMenu = null; picker.camera() }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PhotoCamera)
-                SecondaryButton("Elegir de la galería", { target = kind; photoMenu = null; picker.gallery() }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PhotoLibrary)
+                SecondaryButton("Tomar foto", { target = kind; photoMenu = null; picker.camera() }, Modifier.fillMaxWidth(), icon = Ic.Camera)
+                SecondaryButton("Elegir de la galería", { target = kind; photoMenu = null; picker.gallery() }, Modifier.fillMaxWidth(), icon = Ic.Image)
                 if (current != null) {
                     TextButton(onClick = {
                         Photos.delete(current)
@@ -368,7 +368,7 @@ fun SuperMiPerfil(user: AppUser, go: (Tab) -> Unit) {
     if (askBioPermission) {
         Dialog(onDismissRequest = { askBioPermission = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             DialogCard {
-                CircleIcon(Icons.Rounded.Fingerprint, Palette.Teal, Palette.TealSoft)
+                CircleIcon(Ic.Fingerprint, Palette.Teal, Palette.TealSoft)
                 Text(
                     "¿Permitir que Convive use tu huella?",
                     style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
@@ -473,7 +473,7 @@ private fun ProfileRow(
         }
         Text(title, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp), modifier = Modifier.weight(1f))
         if (trailing != null) trailing()
-        else Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
+        else Icon(Ic.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
     }
 }
 
@@ -509,16 +509,16 @@ private fun EditInfoDialog(user: AppUser, onPhoto: () -> Unit, onClose: () -> Un
                         .background(Palette.Navy),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.PhotoCamera, contentDescription = "Cambiar foto", tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(Ic.Camera, contentDescription = "Cambiar foto", tint = Color.White, modifier = Modifier.size(20.dp))
                 }
             }
             Text("Editar información", style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
-            AppTextField(name, { name = it; error = null }, "Nombre completo", icon = Icons.Rounded.PersonOutline)
+            AppTextField(name, { name = it; error = null }, "Nombre completo", icon = Ic.User)
             AppTextField(
                 dni,
                 { dni = it.filter { ch -> ch.isDigit() }.take(8); error = null },
                 "DNI",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Number,
                 placeholder = "Ej. 87654321"
             )
@@ -526,7 +526,7 @@ private fun EditInfoDialog(user: AppUser, onPhoto: () -> Unit, onClose: () -> Un
                 phone,
                 { phone = it.filter { ch -> ch.isDigit() }.take(9); error = null },
                 "Celular",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Phone,
                 placeholder = "Ej. 987 654 321"
             )
@@ -550,7 +550,7 @@ private fun CreateSuperAdminDialog(onClose: () -> Unit) {
 
     if (done != null) {
         ResultDialog(
-            icon = Icons.Rounded.CheckCircle,
+            icon = Ic.CheckCircle,
             iconTint = Palette.Green,
             iconBg = Palette.GreenSoft,
             title = "Super admin creado",
@@ -564,12 +564,12 @@ private fun CreateSuperAdminDialog(onClose: () -> Unit) {
         DialogCard {
             Text("Crear super admin", style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp, fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
             Text("Tendrá los mismos accesos que tú", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted, textAlign = TextAlign.Center)
-            AppTextField(name, { name = it; error = null }, "Nombre completo", icon = Icons.Rounded.PersonOutline, placeholder = "Ej. Pedro")
+            AppTextField(name, { name = it; error = null }, "Nombre completo", icon = Ic.User, placeholder = "Ej. Pedro")
             AppTextField(
                 dni,
                 { dni = it.filter { ch -> ch.isDigit() }.take(8); error = null },
                 "DNI",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Number,
                 placeholder = "Ej. 87654321"
             )
@@ -577,7 +577,7 @@ private fun CreateSuperAdminDialog(onClose: () -> Unit) {
                 phone,
                 { phone = it.filter { ch -> ch.isDigit() }.take(9); error = null },
                 "Celular",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Phone,
                 placeholder = "Ej. 987 654 321"
             )
@@ -631,7 +631,7 @@ fun SuperNotifications(onBack: () -> Unit) {
                 color = Palette.AmberDark
             )
         }
-        if (list.isEmpty()) EmptyState(Icons.Rounded.NotificationsNone, "No tienes pedidos de ayuda.")
+        if (list.isEmpty()) EmptyState(Ic.Bell, "No tienes pedidos de ayuda.")
         list.forEach { r ->
             key(r.id) {
                 val from = Store.users.firstOrNull { it.id == r.fromUserId }
@@ -700,7 +700,7 @@ fun HelpRequestDialog(user: AppUser, onClose: () -> Unit) {
     var sent by remember { mutableStateOf(false) }
     if (sent) {
         ResultDialog(
-            icon = Icons.Rounded.CheckCircle,
+            icon = Ic.CheckCircle,
             iconTint = Palette.Green,
             iconBg = Palette.GreenSoft,
             title = "Mensaje enviado",
@@ -712,7 +712,7 @@ fun HelpRequestDialog(user: AppUser, onClose: () -> Unit) {
     }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         DialogCard {
-            CircleIcon(Icons.Rounded.SupportAgent, Palette.Teal, Palette.TealSoft)
+            CircleIcon(Ic.Headset, Palette.Teal, Palette.TealSoft)
             Text("¿En qué te ayudamos?", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
             Text(
                 "Tu mensaje le llega al equipo de Convive como notificación.",

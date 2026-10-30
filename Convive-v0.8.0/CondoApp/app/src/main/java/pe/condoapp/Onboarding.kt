@@ -421,7 +421,7 @@ private fun SceneRegistrar() = SceneFrame {
                 Box(
                     Modifier.size(44.dp).clip(CircleShape).background(Color.White).padding(3.dp).clip(CircleShape).background(Palette.TealSoft),
                     contentAlignment = Alignment.Center
-                ) { Icon(Icons.Rounded.Person, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(26.dp)) }
+                ) { Icon(Ic.User, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(26.dp)) }
                 FillBar(ease(seg(p, 0.05f, 0.25f)), Palette.Navy, 104.dp, 8.dp)
                 FillBar(ease(seg(p, 0.22f, 0.40f)), Palette.Teal, 80.dp)
                 FillBar(ease(seg(p, 0.37f, 0.55f)), Palette.Teal, 94.dp)
@@ -451,7 +451,7 @@ private fun SceneRegistrar() = SceneFrame {
     // Lápiz que "firma"
     val w = kotlin.math.sin(p * Math.PI.toFloat() * 8f)
     SceneBadge(
-        Icons.Rounded.Edit, Palette.Amber, Palette.Navy, 48.dp,
+        Ic.Edit, Palette.Amber, Palette.Navy, 48.dp,
         Modifier.align(Alignment.BottomStart).offset(x = 30.dp, y = (-34).dp)
             .graphicsLayer { rotationZ = w * 10f; translationX = w * 6f }
     )
@@ -499,7 +499,7 @@ private fun SceneCobrar() = SceneFrame {
     val x = seg(p, 0.62f, 0.75f)
     val k = if (x <= 0f) 0f else 1f + 0.25f * kotlin.math.sin(x * Math.PI.toFloat())
     Box(Modifier.align(Alignment.BottomStart).offset(x = 26.dp, y = (-28).dp).graphicsLayer { scaleX = k; scaleY = k }) {
-        MiniChip("Pagado", Palette.GreenSoft, Palette.Green, Icons.Rounded.CheckCircle)
+        MiniChip("Pagado", Palette.GreenSoft, Palette.Green, Ic.CheckCircle)
     }
 }
 
@@ -512,7 +512,7 @@ private fun SceneAvisar() = SceneFrame {
                 Modifier.fillMaxWidth().height(70.dp).clip(RoundedCornerShape(12.dp))
                     .background(Brush.linearGradient(listOf(Palette.Navy, Palette.Teal))),
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Rounded.Campaign, contentDescription = null, tint = Color.White, modifier = Modifier.size(34.dp)) }
+            ) { Icon(Ic.Megaphone, contentDescription = null, tint = Color.White, modifier = Modifier.size(34.dp)) }
             MiniChip("Urgente", Palette.RedSoft, Palette.Red)
             FillBar(1f, Color(0xFFDDE2EA), 120.dp, 7.dp)
             FillBar(1f, Color(0xFFDDE2EA), 86.dp, 7.dp)
@@ -525,14 +525,14 @@ private fun SceneAvisar() = SceneFrame {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Rounded.NotificationsActive, contentDescription = null, tint = Palette.Navy,
+                Ic.BellRing, contentDescription = null, tint = Palette.Navy,
                 modifier = Modifier.size(32.dp).ring(true)
             )
         }
         Box(Modifier.align(Alignment.TopEnd).size(14.dp).clip(CircleShape).background(Palette.Red).border(2.dp, Color.White, CircleShape))
     }
     SceneBadge(
-        Icons.Rounded.PhotoCamera, Palette.Teal, Color.White, 44.dp,
+        Ic.Camera, Palette.Teal, Color.White, 44.dp,
         Modifier.align(Alignment.BottomStart).offset(x = 28.dp, y = (-30).dp).floating(4.dp, 2200, 600)
     )
 }
@@ -555,15 +555,15 @@ private fun SceneHogar() = SceneFrame {
         drawCircle(Palette.Amber, w * 0.05f, Offset(w * 0.5f, h * 0.29f))
     }
     MiniChip(
-        "Al día", Palette.GreenSoft, Palette.Green, Icons.Rounded.CheckCircle,
+        "Al día", Palette.GreenSoft, Palette.Green, Ic.CheckCircle,
         Modifier.align(Alignment.TopEnd).offset(x = (-22).dp, y = 36.dp).floating(4.dp, 2400, 300)
     )
     MiniChip(
-        "Pago: 05 nov", Color.White, Palette.Navy, Icons.Rounded.Event,
+        "Pago: 05 nov", Color.White, Palette.Navy, Ic.Calendar,
         Modifier.align(Alignment.BottomStart).offset(x = 18.dp, y = (-34).dp).floating(4.dp, 2600, 900)
     )
     SceneBadge(
-        Icons.Rounded.Description, Palette.Navy, Color.White, 42.dp,
+        Ic.Doc, Palette.Navy, Color.White, 42.dp,
         Modifier.align(Alignment.TopStart).offset(x = 30.dp, y = 44.dp).floating(5.dp, 2800, 500)
     )
 }
@@ -581,7 +581,7 @@ private fun SceneMedidor() = SceneFrame {
     ) {
         Column(Modifier.fillMaxSize().padding(10.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
             Box(Modifier.size(46.dp).clip(CircleShape).background(Palette.AmberSoft), contentAlignment = Alignment.Center) {
-                Icon(Icons.Rounded.Bolt, contentDescription = null, tint = Palette.AmberDark, modifier = Modifier.size(28.dp))
+                Icon(Ic.Bolt, contentDescription = null, tint = Palette.AmberDark, modifier = Modifier.size(28.dp))
             }
             Spacer(Modifier.height(10.dp))
             val n = (482 * ease(seg(p, 0.0f, 0.4f))).toInt()
@@ -607,13 +607,13 @@ private fun SceneMedidor() = SceneFrame {
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = flash }.background(Color.White))
     }
     SceneBadge(
-        Icons.Rounded.PhotoCamera, Palette.Teal, Color.White, 50.dp,
+        Ic.Camera, Palette.Teal, Color.White, 50.dp,
         Modifier.align(Alignment.BottomEnd).offset(x = (-34).dp, y = (-30).dp)
             .graphicsLayer { val k = if (p in 0.46f..0.54f) 0.86f else 1f; scaleX = k; scaleY = k }
     )
     val sent = ease(seg(p, 0.66f, 0.76f)) * (1f - seg(p, 0.94f, 1f))
     Box(Modifier.align(Alignment.TopStart).offset(x = 22.dp, y = 48.dp).graphicsLayer { scaleX = sent; scaleY = sent; alpha = sent }) {
-        MiniChip("Enviado", Palette.GreenSoft, Palette.Green, Icons.Rounded.CheckCircle)
+        MiniChip("Enviado", Palette.GreenSoft, Palette.Green, Ic.CheckCircle)
     }
 }
 
@@ -628,7 +628,7 @@ private fun SceneReportar() = SceneFrame {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(Palette.NavySoft), contentAlignment = Alignment.Center) {
-                    Icon(if (solved) Icons.Rounded.Wifi else Icons.Rounded.WifiOff, contentDescription = null, tint = Palette.Navy)
+                    Icon(if (solved) Ic.Wifi else Ic.WifiOff, contentDescription = null, tint = Palette.Navy)
                 }
                 Column {
                     Text("Internet", style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp), color = Palette.Ink)
@@ -640,15 +640,15 @@ private fun SceneReportar() = SceneFrame {
                 transitionSpec = { (scaleIn(initialScale = 0.6f, animationSpec = Motion.Bouncy) + fadeIn()) togetherWith fadeOut(tween(100)) },
                 label = "status"
             ) { ok ->
-                if (ok) MiniChip("Resuelto", Palette.GreenSoft, Palette.Green, Icons.Rounded.CheckCircle)
-                else MiniChip("En revisión", Palette.AmberSoft, Palette.AmberDark, Icons.Rounded.Schedule)
+                if (ok) MiniChip("Resuelto", Palette.GreenSoft, Palette.Green, Ic.CheckCircle)
+                else MiniChip("En revisión", Palette.AmberSoft, Palette.AmberDark, Ic.Clock)
             }
         }
     }
     val t = rememberInfiniteTransition(label = "wrench")
     val r by t.animateFloat(-18f, 18f, infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "r")
     SceneBadge(
-        Icons.Rounded.Build, Palette.Amber, Palette.Navy, 50.dp,
+        Ic.Gear, Palette.Amber, Palette.Navy, 50.dp,
         Modifier.align(Alignment.TopEnd).offset(x = (-30).dp, y = 30.dp).graphicsLayer { rotationZ = if (solved) 0f else r }
     )
 }

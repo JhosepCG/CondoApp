@@ -54,7 +54,7 @@ fun SuperResumen(user: AppUser, go: (Tab) -> Unit) {
                     Text("Suscripciones al mes", color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.labelMedium)
                     Text(money(income), color = Color.White, style = MaterialTheme.typography.headlineMedium)
                 }
-                IconBadge(Icons.Rounded.Insights, Palette.Navy, Palette.Amber, 48.dp)
+                IconBadge(Ic.ChartUp, Palette.Navy, Palette.Amber, 48.dp)
             }
             ProgressLine(
                 if (Store.clients.isEmpty()) 0f else active.size.toFloat() / Store.clients.size,
@@ -69,8 +69,8 @@ fun SuperResumen(user: AppUser, go: (Tab) -> Unit) {
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            StatCard("Usuarios en la app", "$people", Icons.Rounded.Groups, Palette.Teal, Palette.TealSoft, Modifier.weight(1f))
-            StatCard("Suscripciones por cobrar", money(overdue + pendingAmt), Icons.Rounded.Payments, Palette.Navy, Palette.NavySoft, Modifier.weight(1f))
+            StatCard("Usuarios en la app", "$people", Ic.Users, Palette.Teal, Palette.TealSoft, Modifier.weight(1f))
+            StatCard("Suscripciones por cobrar", money(overdue + pendingAmt), Ic.Cash, Palette.Navy, Palette.NavySoft, Modifier.weight(1f))
         }
 
         // Ingresos por cliente
@@ -132,12 +132,12 @@ fun SuperResumen(user: AppUser, go: (Tab) -> Unit) {
             }
         }
 
-        SecondaryButton("Ver clientes", { go(Tab.CLIENTES) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Apartment)
+        SecondaryButton("Ver clientes", { go(Tab.CLIENTES) }, Modifier.fillMaxWidth(), icon = Ic.Building)
         SecondaryButton(
             "Restablecer datos de prueba",
             { confirmReset = true },
             Modifier.fillMaxWidth(),
-            icon = Icons.Rounded.Refresh
+            icon = Ic.Refresh
         )
     }
 
@@ -219,9 +219,9 @@ fun SubscriptionRow(c: Client, inEditor: Boolean = false) {
         }
         if (c.plan != Plan.GRATIS) {
             if (st == SubStatus.PAGADO) {
-                SecondaryButton("Deshacer pago", { Store.toggleSubscriptionPaid(c) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Undo)
+                SecondaryButton("Deshacer pago", { Store.toggleSubscriptionPaid(c) }, Modifier.fillMaxWidth(), icon = Ic.Undo)
             } else {
-                PrimaryButton("Marcar como pagado", { Store.toggleSubscriptionPaid(c) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
+                PrimaryButton("Marcar como pagado", { Store.toggleSubscriptionPaid(c) }, Modifier.fillMaxWidth(), icon = Ic.Check)
             }
         }
     }

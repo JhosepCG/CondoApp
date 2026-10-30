@@ -78,7 +78,7 @@ fun ContractFields(f: ContractFormState) {
         f.dni,
         { v -> f.dni = v.filter { it.isDigit() }.take(8) },
         "DNI",
-        icon = Icons.Rounded.Badge,
+        icon = Ic.IdCard,
         keyboardType = KeyboardType.Number
     )
 
@@ -111,7 +111,7 @@ fun ContractFields(f: ContractFormState) {
         f.rent,
         { v -> f.rent = v.filter { it.isDigit() || it == '.' } },
         "Pago mensual (S/)",
-        icon = Icons.Rounded.Payments,
+        icon = Ic.Cash,
         keyboardType = KeyboardType.Decimal
     )
 
@@ -121,7 +121,7 @@ fun ContractFields(f: ContractFormState) {
             f.guaranteeAmount,
             { v -> f.guaranteeAmount = v.filter { it.isDigit() || it == '.' } },
             "Monto de la garantía (S/)",
-            icon = Icons.Rounded.Savings,
+            icon = Ic.MoneyBag,
             keyboardType = KeyboardType.Decimal
         )
     }
@@ -145,7 +145,7 @@ private fun DateBox(label: String, date: LocalDate, modifier: Modifier, onClick:
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Icon(Icons.Rounded.CalendarMonth, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(20.dp))
+        Icon(Ic.Calendar, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(20.dp))
         Column {
             Text(label, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
             Text(date.format(dateFmt), style = MaterialTheme.typography.titleSmall)
@@ -172,7 +172,7 @@ fun MultiChoiceChips(options: List<String>, selected: Set<String>, onToggle: (St
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                if (sel) Icon(Icons.Rounded.Check, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(16.dp))
+                if (sel) Icon(Ic.Check, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(16.dp))
                 Text(o, color = if (sel) Palette.Teal else Palette.Ink, style = MaterialTheme.typography.labelLarge)
             }
         }
@@ -184,14 +184,14 @@ class ContractBadge(val label: String, val fg: Color, val bg: Color, val icon: I
 fun contractBadge(c: Contract): ContractBadge {
     val days = ChronoUnit.DAYS.between(LocalDate.now(), c.end)
     return when {
-        Store.contractExpired(c) -> ContractBadge("Vencido", Palette.Red, Palette.RedSoft, Icons.Rounded.ErrorOutline)
+        Store.contractExpired(c) -> ContractBadge("Vencido", Palette.Red, Palette.RedSoft, Ic.AlertCircle)
         Store.contractEndingSoon(c) -> ContractBadge(
             if (days == 0L) "Vence hoy" else "Vence en $days días",
             Palette.AmberDark,
             Palette.AmberSoft,
-            Icons.Rounded.Schedule
+            Ic.Clock
         )
-        else -> ContractBadge("Vigente", Palette.Green, Palette.GreenSoft, Icons.Rounded.CheckCircle)
+        else -> ContractBadge("Vigente", Palette.Green, Palette.GreenSoft, Ic.CheckCircle)
     }
 }
 
@@ -201,7 +201,7 @@ fun ContractSummary(c: Contract, showDni: Boolean) {
     val b = contractBadge(c)
     AppCard(padding = 16.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            IconBadge(Icons.Rounded.Description, Palette.Navy, Palette.NavySoft)
+            IconBadge(Ic.Doc, Palette.Navy, Palette.NavySoft)
             Column(Modifier.weight(1f)) {
                 Text("Contrato", style = MaterialTheme.typography.titleMedium)
                 Text(
@@ -246,7 +246,7 @@ fun ContractAdminSection(u: AppUser, c: Client) {
                     style = MaterialTheme.typography.bodyMedium,
                     color = Palette.Muted
                 )
-                PrimaryButton("Registrar contrato", { editing = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+                PrimaryButton("Registrar contrato", { editing = true }, Modifier.fillMaxWidth(), icon = Ic.Plus)
             }
         } else {
             ContractEditor(u, c, contract) { editing = false }
@@ -256,7 +256,7 @@ fun ContractAdminSection(u: AppUser, c: Client) {
 
     ContractSummary(contract, showDni = true)
     RenewalBox(u, contract)
-    SecondaryButton("Editar contrato", { editing = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Edit)
+    SecondaryButton("Editar contrato", { editing = true }, Modifier.fillMaxWidth(), icon = Ic.Edit)
 }
 
 @Composable
@@ -298,7 +298,7 @@ private fun RenewalBox(u: AppUser, contract: Contract) {
     AppCard(color = bg, borderColor = if (bg == Palette.Surface) Palette.Line else bg) {
         if (contract.renewRequested) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                IconBadge(Icons.Rounded.MarkEmailRead, Palette.Teal, Palette.Surface, 40.dp)
+                IconBadge(Ic.Mail, Palette.Teal, Palette.Surface, 40.dp)
                 Column(Modifier.weight(1f)) {
                     Text("Aviso de renovación enviado", style = MaterialTheme.typography.titleMedium)
                     Text(
@@ -311,12 +311,12 @@ private fun RenewalBox(u: AppUser, contract: Contract) {
             Text("¿Ya firmó el nuevo contrato? Renuévalo por:", style = MaterialTheme.typography.bodyMedium)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 SecondaryButton("6 meses", { Store.renewContract(u.id, 6) }, Modifier.weight(1f))
-                PrimaryButton("12 meses", { Store.renewContract(u.id, 12) }, Modifier.weight(1f), icon = Icons.Rounded.Check)
+                PrimaryButton("12 meses", { Store.renewContract(u.id, 12) }, Modifier.weight(1f), icon = Ic.Check)
             }
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 IconBadge(
-                    Icons.Rounded.EditNote,
+                    Ic.EditNote,
                     if (expired) Palette.Red else if (soon) Palette.AmberDark else Palette.Navy,
                     if (bg == Palette.Surface) Palette.NavySoft else Palette.Surface,
                     40.dp
@@ -357,7 +357,7 @@ private fun RenewalBox(u: AppUser, contract: Contract) {
                 Modifier.fillMaxWidth(),
                 enabled = mustSign,
                 color = Palette.Navy,
-                icon = Icons.Rounded.Campaign
+                icon = Ic.Megaphone
             )
         }
     }
@@ -368,7 +368,7 @@ private fun RenewalBox(u: AppUser, contract: Contract) {
 fun RenewalBanner(c: Contract) {
     AppCard(color = Palette.AmberSoft, borderColor = Palette.Amber.copy(alpha = 0.45f)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            IconBadge(Icons.Rounded.EditNote, Palette.AmberDark, Palette.Surface)
+            IconBadge(Ic.EditNote, Palette.AmberDark, Palette.Surface)
             Column(Modifier.weight(1f)) {
                 Text("Debes firmar nuevamente tu contrato", style = MaterialTheme.typography.titleMedium)
                 Text(

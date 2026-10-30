@@ -76,7 +76,7 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
             eyebrow = "Mi domicilio",
             title = user.unit ?: "-",
             subtitle = c.name,
-            icon = Icons.Rounded.Home
+            icon = Ic.Home
         ) {
             Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -92,7 +92,7 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
                 borderColor = if (late) Palette.RedSoft else Palette.AmberSoft
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.Bolt, if (late) Palette.Red else Palette.AmberDark, Palette.Surface)
+                    IconBadge(Ic.Bolt, if (late) Palette.Red else Palette.AmberDark, Palette.Surface)
                     Column(Modifier.weight(1f)) {
                         Text("Envía la foto de tu medidor", style = MaterialTheme.typography.titleMedium)
                         Text(
@@ -108,7 +108,7 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
                     { go(Tab.MEDIDOR) },
                     Modifier.fillMaxWidth(),
                     color = Palette.Navy,
-                    icon = Icons.Rounded.PhotoCamera
+                    icon = Ic.Camera
                 )
             }
         }
@@ -124,7 +124,7 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
                 }
                 if (next == null) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconBadge(Icons.Rounded.CheckCircle, Palette.Green, Palette.GreenSoft)
+                        IconBadge(Ic.CheckCircle, Palette.Green, Palette.GreenSoft)
                         Column {
                             Text("Estás al día", style = MaterialTheme.typography.titleMedium)
                             Text("No tienes pagos pendientes.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -162,7 +162,7 @@ fun TenantHome(user: AppUser, go: (Tab) -> Unit) {
                 CoachMark("in_emergencia", "Úsalo solo si pasa algo grave: la administración recibe la alerta al instante.")
             }
             sent?.let { msg ->
-                Pill(msg, Palette.Green, Palette.GreenSoft, Icons.Rounded.CheckCircle)
+                Pill(msg, Palette.Green, Palette.GreenSoft, Ic.CheckCircle)
             }
             mine.forEach { e ->
                 Text(
@@ -318,7 +318,7 @@ private fun EmergencyButton(onClick: () -> Unit) {
                 Modifier.size(42.dp).clip(CircleShape).background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Warning, contentDescription = null, tint = Palette.Red)
+                Icon(Ic.Warning, contentDescription = null, tint = Palette.Red)
             }
         }
         Column(Modifier.weight(1f)) {
@@ -338,7 +338,7 @@ private fun EmergencyDialog(onPick: (String) -> Unit, onDismiss: () -> Unit) {
         onDismissRequest = onDismiss,
         containerColor = Palette.Surface,
         shape = RoundedCornerShape(28.dp),
-        icon = { IconBadge(Icons.Rounded.Warning, Palette.Red, Palette.RedSoft, 52.dp) },
+        icon = { IconBadge(Ic.Warning, Palette.Red, Palette.RedSoft, 52.dp) },
         title = { Text("¿Qué está pasando?", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -400,7 +400,7 @@ fun TenantServicios(user: AppUser) {
                 singleLine = false,
                 minLines = 3
             )
-            if (sent) Pill("Reporte enviado", Palette.Green, Palette.GreenSoft, Icons.Rounded.CheckCircle)
+            if (sent) Pill("Reporte enviado", Palette.Green, Palette.GreenSoft, Ic.CheckCircle)
             PrimaryButton(
                 "Enviar a la administración",
                 {
@@ -414,7 +414,7 @@ fun TenantServicios(user: AppUser) {
         }
 
         SectionTitle("Mis reportes", trailing = "${mine.size}")
-        if (mine.isEmpty()) EmptyState(Icons.Rounded.Build, "No has enviado reportes.")
+        if (mine.isEmpty()) EmptyState(Ic.Gear, "No has enviado reportes.")
         mine.forEach { inc ->
             key(inc.id) {
                 AppCard {
@@ -457,7 +457,7 @@ fun TenantAvisos(user: AppUser) {
             style = MaterialTheme.typography.bodyMedium,
             color = Palette.Muted
         )
-        if (list.isEmpty()) EmptyState(Icons.Rounded.Campaign, "No hay avisos por ahora.")
+        if (list.isEmpty()) EmptyState(Ic.Megaphone, "No hay avisos por ahora.")
         list.forEach { n -> key(n.id) { NoticeCard(n) } }
     }
 }

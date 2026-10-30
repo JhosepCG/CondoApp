@@ -106,7 +106,7 @@ fun SearchField(value: String, onValueChange: (String) -> Unit, placeholder: Str
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Icon(Icons.Rounded.Search, contentDescription = null, tint = Palette.Muted)
+        Icon(Ic.Search, contentDescription = null, tint = Palette.Muted)
         Box(Modifier.weight(1f)) {
             if (value.isEmpty()) {
                 Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = Palette.Muted, maxLines = 1)
@@ -122,7 +122,7 @@ fun SearchField(value: String, onValueChange: (String) -> Unit, placeholder: Str
         }
         if (value.isNotEmpty()) {
             Icon(
-                Icons.Rounded.Close,
+                Ic.Close,
                 contentDescription = "Borrar búsqueda",
                 tint = Palette.Muted,
                 modifier = Modifier.size(20.dp).clip(CircleShape).clickable { onValueChange("") }
@@ -211,7 +211,7 @@ fun PhotoImage(path: String?, modifier: Modifier = Modifier, maxSide: Int = 1200
         if (img != null) {
             Image(bitmap = img, contentDescription = null, contentScale = scale, modifier = Modifier.fillMaxSize())
         } else {
-            Icon(Icons.Rounded.Image, contentDescription = null, tint = Palette.Muted)
+            Icon(Ic.Image, contentDescription = null, tint = Palette.Muted)
         }
     }
 }
@@ -234,29 +234,29 @@ fun TenantRow(u: AppUser, showClient: Boolean, showContract: Boolean = false, on
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            Icon(Icons.Rounded.KeyboardArrowRight, contentDescription = null, tint = Palette.Muted)
+            Icon(Ic.ChevronRight, contentDescription = null, tint = Palette.Muted)
         }
         val contract = if (showContract) Store.contractOf(u.id) else null
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             if (contract != null) {
                 when {
-                    contract.renewRequested -> Pill("Renovación enviada", Palette.Teal, Palette.TealSoft, Icons.Rounded.EditNote)
-                    Store.contractExpired(contract) -> Pill("Contrato vencido", Palette.Red, Palette.RedSoft, Icons.Rounded.EditNote)
-                    Store.contractEndingSoon(contract) -> Pill("Contrato por vencer", Palette.AmberDark, Palette.AmberSoft, Icons.Rounded.EditNote)
+                    contract.renewRequested -> Pill("Renovación enviada", Palette.Teal, Palette.TealSoft, Ic.EditNote)
+                    Store.contractExpired(contract) -> Pill("Contrato vencido", Palette.Red, Palette.RedSoft, Ic.EditNote)
+                    Store.contractEndingSoon(contract) -> Pill("Contrato por vencer", Palette.AmberDark, Palette.AmberSoft, Ic.EditNote)
                     else -> {}
                 }
             }
             when {
-                st.overdue > 0 -> Pill("Debe ${money(st.owed)}", Palette.Red, Palette.RedSoft, Icons.Rounded.ErrorOutline)
-                !st.upToDate -> Pill("Pago pendiente", Palette.AmberDark, Palette.AmberSoft, Icons.Rounded.Schedule)
-                else -> Pill("Al día", Palette.Green, Palette.GreenSoft, Icons.Rounded.CheckCircle)
+                st.overdue > 0 -> Pill("Debe ${money(st.owed)}", Palette.Red, Palette.RedSoft, Ic.AlertCircle)
+                !st.upToDate -> Pill("Pago pendiente", Palette.AmberDark, Palette.AmberSoft, Ic.Clock)
+                else -> Pill("Al día", Palette.Green, Palette.GreenSoft, Ic.CheckCircle)
             }
             when (st.meterSent) {
-                true -> Pill("Medidor", Palette.Green, Palette.GreenSoft, Icons.Rounded.Bolt)
-                false -> Pill("Falta medidor", Palette.AmberDark, Palette.AmberSoft, Icons.Rounded.Bolt)
+                true -> Pill("Medidor", Palette.Green, Palette.GreenSoft, Ic.Bolt)
+                false -> Pill("Falta medidor", Palette.AmberDark, Palette.AmberSoft, Ic.Bolt)
                 null -> {}
             }
-            if (st.openIncidents > 0) Pill("${st.openIncidents} reporte", Palette.Navy, Palette.NavySoft, Icons.Rounded.Build)
+            if (st.openIncidents > 0) Pill("${st.openIncidents} reporte", Palette.Navy, Palette.NavySoft, Ic.Gear)
         }
     }
 }
@@ -365,11 +365,11 @@ fun NavPill(icon: ImageVector, label: String, selected: Boolean, dot: Boolean, m
 @Composable
 fun SubPill(st: SubStatus) {
     when (st) {
-        SubStatus.PAGADO -> Pill(st.label, Palette.Green, Palette.GreenSoft, Icons.Rounded.CheckCircle)
-        SubStatus.PENDIENTE -> Pill(st.label, Palette.AmberDark, Palette.AmberSoft, Icons.Rounded.Schedule)
-        SubStatus.VENCIDO -> Pill(st.label, Palette.Red, Palette.RedSoft, Icons.Rounded.ErrorOutline)
-        SubStatus.GRATIS -> Pill(st.label, Palette.Teal, Palette.TealSoft, Icons.Rounded.Redeem)
-        SubStatus.PRUEBA -> Pill(st.label, Palette.Navy, Palette.NavySoft, Icons.Rounded.HourglassTop)
+        SubStatus.PAGADO -> Pill(st.label, Palette.Green, Palette.GreenSoft, Ic.CheckCircle)
+        SubStatus.PENDIENTE -> Pill(st.label, Palette.AmberDark, Palette.AmberSoft, Ic.Clock)
+        SubStatus.VENCIDO -> Pill(st.label, Palette.Red, Palette.RedSoft, Ic.AlertCircle)
+        SubStatus.GRATIS -> Pill(st.label, Palette.Teal, Palette.TealSoft, Ic.Gift)
+        SubStatus.PRUEBA -> Pill(st.label, Palette.Navy, Palette.NavySoft, Ic.Hourglass)
     }
 }
 

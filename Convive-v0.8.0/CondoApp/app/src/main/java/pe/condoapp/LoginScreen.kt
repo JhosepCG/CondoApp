@@ -266,7 +266,7 @@ fun LoginScreen() {
                                 shape = CircleShape,
                                 border = androidx.compose.foundation.BorderStroke(1.dp, Palette.Line)
                             ) {
-                                Icon(Icons.Rounded.Fingerprint, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(24.dp))
+                                Icon(Ic.Fingerprint, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(24.dp))
                                 Spacer(Modifier.width(8.dp))
                                 Text("Ingresar con huella", color = Palette.Ink, style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp))
                             }
@@ -463,7 +463,7 @@ private fun LabeledField(
         {
             IconButton(onClick = { visible = !visible }) {
                 Icon(
-                    if (visible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                    if (visible) Ic.EyeOff else Ic.Eye,
                     contentDescription = if (visible) "Ocultar contraseña" else "Mostrar contraseña",
                     tint = Palette.Muted
                 )

@@ -22,19 +22,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 enum class Tab(val label: String, val icon: ImageVector) {
-    RESUMEN("Home", Icons.Rounded.Home),
-    CLIENTES("Clientes", Icons.Rounded.Apartment),
-    PLANES("Planes", Icons.Rounded.CreditCard),
-    MI_PERFIL("Mi perfil", Icons.Rounded.PersonOutline),
-    CUENTAS("Cuentas", Icons.Rounded.Groups),
-    PANEL("Panel", Icons.Rounded.Security),
-    COBROS("Cobros", Icons.Rounded.Payments),
-    SERVICIOS("Servicios", Icons.Rounded.Build),
-    AVISOS("Avisos", Icons.Rounded.Campaign),
-    PERSONAS("Personas", Icons.Rounded.Groups),
-    INICIO("Inicio", Icons.Rounded.Home),
-    MEDIDOR("Medidor", Icons.Rounded.Bolt),
-    MEDIDORES("Medidores", Icons.Rounded.Bolt)
+    RESUMEN("Home", Ic.Home),
+    CLIENTES("Clientes", Ic.Building),
+    PLANES("Planes", Ic.Card),
+    MI_PERFIL("Mi perfil", Ic.User),
+    CUENTAS("Cuentas", Ic.Users),
+    PANEL("Panel", Ic.Shield),
+    COBROS("Cobros", Ic.Cash),
+    SERVICIOS("Servicios", Ic.Gear),
+    AVISOS("Avisos", Ic.Megaphone),
+    PERSONAS("Personas", Ic.Users),
+    INICIO("Inicio", Ic.Home),
+    MEDIDOR("Medidor", Ic.Bolt),
+    MEDIDORES("Medidores", Ic.Bolt)
 }
 
 /** Pestañas de la barra inferior (máximo 5). */
@@ -339,7 +339,7 @@ private fun TopBar(user: AppUser, client: Client?, bellDot: Boolean, onBell: (()
                     .clickable(onClick = onBell),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Notifications, contentDescription = "Avisos", tint = Palette.Ink, modifier = Modifier.ring(bellDot))
+                Icon(Ic.Bell, contentDescription = "Avisos", tint = Palette.Ink, modifier = Modifier.ring(bellDot))
                 if (bellDot) {
                     Box(
                         Modifier
@@ -387,7 +387,7 @@ private fun TopBar(user: AppUser, client: Client?, bellDot: Boolean, onBell: (()
                             Store.resetTips()
                             UiState.showOnboarding = true
                         }) {
-                            Icon(Icons.Rounded.HelpOutline, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(18.dp))
+                            Icon(Ic.Help, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
                             Text("Ver introducción", color = Palette.Teal, style = MaterialTheme.typography.labelLarge)
                         }
@@ -399,7 +399,7 @@ private fun TopBar(user: AppUser, client: Client?, bellDot: Boolean, onBell: (()
                     accountOpen = false
                     Store.logout()
                 }) {
-                    Icon(Icons.Rounded.PowerSettingsNew, contentDescription = null, tint = Palette.Red, modifier = Modifier.size(18.dp))
+                    Icon(Ic.Power, contentDescription = null, tint = Palette.Red, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text("Cerrar sesión", color = Palette.Red, style = MaterialTheme.typography.labelLarge)
                 }

@@ -50,32 +50,32 @@ fun pct(v: Double): String = if (v % 1.0 == 0.0) "${v.toInt()}%" else "$v%"
 // ------------------------------------------------------------------
 
 fun serviceIcon(s: String): ImageVector = when (s) {
-    "Internet" -> Icons.Rounded.Wifi
-    "Cable" -> Icons.Rounded.Tv
-    "Agua" -> Icons.Rounded.Opacity
-    "Luz" -> Icons.Rounded.Bolt
-    else -> Icons.Rounded.Build
+    "Internet" -> Ic.Wifi
+    "Cable" -> Ic.Tv
+    "Agua" -> Ic.Drop
+    "Luz" -> Ic.Bolt
+    else -> Ic.Gear
 }
 
 fun noticeIcon(category: String): ImageVector = when (category) {
-    "Corte de agua" -> Icons.Rounded.Opacity
-    "Corte de luz" -> Icons.Rounded.Bolt
-    "Medidor de luz" -> Icons.Rounded.Bolt
-    "Internet / cable" -> Icons.Rounded.Wifi
-    "Mantenimiento" -> Icons.Rounded.Build
-    "Seguridad" -> Icons.Rounded.Security
-    else -> Icons.Rounded.Campaign
+    "Corte de agua" -> Ic.Drop
+    "Corte de luz" -> Ic.Bolt
+    "Medidor de luz" -> Ic.Bolt
+    "Internet / cable" -> Ic.Wifi
+    "Mantenimiento" -> Ic.Gear
+    "Seguridad" -> Ic.Shield
+    else -> Ic.Megaphone
 }
 
 fun emergencyIcon(type: String): ImageVector = when (type) {
-    "Fuga de gas" -> Icons.Rounded.Warning
-    "Incendio" -> Icons.Rounded.Whatshot
-    "Robo" -> Icons.Rounded.Security
-    else -> Icons.Rounded.ReportProblem
+    "Fuga de gas" -> Ic.Warning
+    "Incendio" -> Ic.AlertOctagon
+    "Robo" -> Ic.Shield
+    else -> Ic.AlertOctagon
 }
 
 fun templateIcon(t: Template): ImageVector =
-    if (t == Template.CONDOMINIO) Icons.Rounded.Apartment else Icons.Rounded.House
+    if (t == Template.CONDOMINIO) Ic.Building else Ic.Home
 
 fun roleFg(r: Role): Color = when (r) {
     Role.SUPER_ADMIN -> Palette.Navy
@@ -334,7 +334,7 @@ fun AppTextField(
         {
             IconButton(onClick = { visible = !visible }) {
                 Icon(
-                    if (visible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                    if (visible) Ic.EyeOff else Ic.Eye,
                     contentDescription = if (visible) "Ocultar contraseña" else "Mostrar contraseña"
                 )
             }
@@ -454,7 +454,7 @@ fun EmptyState(icon: ImageVector, text: String) {
 @Composable
 fun ErrorText(text: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = Palette.Red, modifier = Modifier.size(18.dp))
+        Icon(Ic.AlertCircle, contentDescription = null, tint = Palette.Red, modifier = Modifier.size(18.dp))
         Text(text, color = Palette.Red, style = MaterialTheme.typography.bodyMedium)
     }
 }
@@ -497,9 +497,9 @@ fun ConfirmDialog(
 class ChargeState(val label: String, val fg: Color, val bg: Color, val icon: ImageVector)
 
 fun chargeState(ch: Charge): ChargeState = when {
-    ch.paid -> ChargeState("Pagado", Palette.Green, Palette.GreenSoft, Icons.Rounded.CheckCircle)
-    Store.isOverdue(ch) -> ChargeState("Vencido", Palette.Red, Palette.RedSoft, Icons.Rounded.ErrorOutline)
-    else -> ChargeState("Pendiente", Palette.AmberDark, Palette.AmberSoft, Icons.Rounded.Schedule)
+    ch.paid -> ChargeState("Pagado", Palette.Green, Palette.GreenSoft, Ic.CheckCircle)
+    Store.isOverdue(ch) -> ChargeState("Vencido", Palette.Red, Palette.RedSoft, Ic.AlertCircle)
+    else -> ChargeState("Pendiente", Palette.AmberDark, Palette.AmberSoft, Ic.Clock)
 }
 
 @Composable
@@ -522,7 +522,7 @@ fun ChargeCard(ch: Charge, onPay: (() -> Unit)? = null) {
             }
         }
         if (onPay != null && !ch.paid) {
-            SecondaryButton("Registrar pago", onPay, Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
+            SecondaryButton("Registrar pago", onPay, Modifier.fillMaxWidth(), icon = Ic.Check)
         }
     }
 }
@@ -560,7 +560,7 @@ fun NoticeCard(n: Notice, onArchive: (() -> Unit)? = null) {
         }
         if (onArchive != null) {
             TextButton(onClick = onArchive, contentPadding = PaddingValues(0.dp)) {
-                Icon(Icons.Rounded.Archive, contentDescription = null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
+                Icon(Ic.Archive, contentDescription = null, tint = Palette.Muted, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
                 Text("Archivar", color = Palette.Muted, style = MaterialTheme.typography.labelLarge)
             }
@@ -621,21 +621,21 @@ fun AccountForm(fixedClient: Client?, allowedRoles: List<Role>, onDone: () -> Un
         ChoiceChips(
             options = allowedRoles.map { it.label },
             selected = role.label,
-            icons = mapOf(Role.ADMIN.label to Icons.Rounded.Security, Role.TENANT.label to Icons.Rounded.Person)
+            icons = mapOf(Role.ADMIN.label to Ic.Shield, Role.TENANT.label to Ic.User)
         ) { l -> role = allowedRoles.first { it.label == l } }
 
         AppTextField(name, {
             name = it
             if (!userEdited) username = if (it.isBlank()) "" else Store.suggestUsername(it)
             error = null
-        }, "Nombre completo", icon = Icons.Rounded.Person)
+        }, "Nombre completo", icon = Ic.User)
         AppTextField(
             username,
             { username = it.lowercase().replace(" ", ""); userEdited = true; error = null },
             "Usuario",
-            icon = Icons.Rounded.AlternateEmail
+            icon = Ic.UserSquare
         )
-        AppTextField(password, { password = it; error = null }, "Contraseña", icon = Icons.Rounded.Lock, password = true)
+        AppTextField(password, { password = it; error = null }, "Contraseña", icon = Ic.Lock, password = true)
         Text(
             "El usuario es su primer nombre y la contraseña inicial es $DEFAULT_PASSWORD. También puede entrar con su DNI.",
             style = MaterialTheme.typography.bodySmall,
@@ -643,8 +643,8 @@ fun AccountForm(fixedClient: Client?, allowedRoles: List<Role>, onDone: () -> Un
         )
 
         if (role == Role.TENANT) {
-            AppTextField(unit, { unit = it; error = null }, "Departamento o casa", icon = Icons.Rounded.MeetingRoom)
-            AppTextField(responsible, { responsible = it }, "Responsable del domicilio (opcional)", icon = Icons.Rounded.AssignmentInd)
+            AppTextField(unit, { unit = it; error = null }, "Departamento o casa", icon = Ic.Home)
+            AppTextField(responsible, { responsible = it }, "Responsable del domicilio (opcional)", icon = Ic.IdCard)
             if (withContract) {
                 LineDivider()
                 Text("Contrato", style = MaterialTheme.typography.titleMedium)
@@ -659,7 +659,7 @@ fun AccountForm(fixedClient: Client?, allowedRoles: List<Role>, onDone: () -> Un
                     amount,
                     { amount = it },
                     if (client.template == Template.CONDOMINIO) "Cuota mensual (S/)" else "Renta mensual (S/)",
-                    icon = Icons.Rounded.Payments,
+                    icon = Ic.Cash,
                     keyboardType = KeyboardType.Decimal
                 )
             }
@@ -711,12 +711,12 @@ fun UserRow(
             Pill(roleLabel(u), roleFg(u.role), roleBg(u.role))
             if (canReset) {
                 IconButton(onClick = { resetOpen = true }) {
-                    Icon(Icons.Rounded.VpnKey, contentDescription = "Cambiar contraseña", tint = Palette.Muted)
+                    Icon(Ic.Lock, contentDescription = "Cambiar contraseña", tint = Palette.Muted)
                 }
             }
             if (canDelete) {
                 IconButton(onClick = { confirm = true }) {
-                    Icon(Icons.Rounded.DeleteOutline, contentDescription = "Eliminar cuenta", tint = Palette.Muted)
+                    Icon(Ic.Trash, contentDescription = "Eliminar cuenta", tint = Palette.Muted)
                 }
             }
         }
@@ -742,7 +742,7 @@ fun UserRow(
                         style = MaterialTheme.typography.bodyMedium,
                         color = Palette.Muted
                     )
-                    AppTextField(newPass, { newPass = it }, "Contraseña nueva", icon = Icons.Rounded.Lock, password = true)
+                    AppTextField(newPass, { newPass = it }, "Contraseña nueva", icon = Ic.Lock, password = true)
                 }
             },
             confirmButton = {

@@ -81,7 +81,7 @@ fun SuperHeader(user: AppUser) {
                 },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.Notifications, contentDescription = "Notificaciones", tint = Palette.Muted, modifier = Modifier.size(22.dp).ring(unread > 0))
+            Icon(Ic.Bell, contentDescription = "Notificaciones", tint = Palette.Muted, modifier = Modifier.size(22.dp).ring(unread > 0))
             if (unread > 0) {
                 Box(
                     Modifier
@@ -106,7 +106,7 @@ fun SuperHeader(user: AppUser) {
                 .clickable { confirmLogout = true },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Rounded.PowerSettingsNew, contentDescription = "Cerrar sesión", tint = Palette.Muted, modifier = Modifier.size(22.dp))
+            Icon(Ic.Power, contentDescription = "Cerrar sesión", tint = Palette.Muted, modifier = Modifier.size(22.dp))
         }
     }
     if (confirmLogout) {
@@ -201,10 +201,10 @@ private fun SuperNavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick:
 
 /** Íconos de la barra del Super Admin: rellenos si están activos, de línea si no (como en Figma). */
 private fun superTabIcon(t: Tab, selected: Boolean): ImageVector = when (t) {
-    Tab.RESUMEN -> if (selected) Icons.Rounded.Home else Icons.Outlined.Home
-    Tab.CLIENTES -> if (selected) Icons.Rounded.Groups else Icons.Outlined.Groups
-    Tab.PLANES -> if (selected) Icons.Rounded.CreditCard else Icons.Outlined.CreditCard
-    Tab.MI_PERFIL -> if (selected) Icons.Rounded.Person else Icons.Outlined.Person
+    Tab.RESUMEN -> if (selected) Ic.HomeFill else Ic.Home
+    Tab.CLIENTES -> if (selected) Ic.UsersFill else Ic.Users
+    Tab.PLANES -> if (selected) Ic.CardFill else Ic.Card
+    Tab.MI_PERFIL -> if (selected) Ic.UserFill else Ic.User
     else -> t.icon
 }
 
@@ -247,7 +247,7 @@ fun SubscriberRow(c: Client, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                if (c.template == Template.CONDOMINIO) Icons.Rounded.Apartment else Icons.Rounded.Home,
+                if (c.template == Template.CONDOMINIO) Ic.Building else Ic.Home,
                 contentDescription = null,
                 tint = Palette.Teal,
                 modifier = Modifier.size(24.dp)
@@ -269,7 +269,7 @@ fun SubscriberRow(c: Client, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
+        Icon(Ic.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
     }
 }
 
@@ -335,8 +335,8 @@ fun SuperHome(user: AppUser, go: (Tab) -> Unit) {
         }
 
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            HomeStat(Icons.Rounded.Groups, "$users", "Usuarios registrados", Modifier.weight(1f).enter(2))
-            HomeStat(Icons.Rounded.CreditCard, money(toCollect.sumOf { it.monthlyFee }), "Por cobrar", Modifier.weight(1f).enter(3))
+            HomeStat(Ic.Users, "$users", "Usuarios registrados", Modifier.weight(1f).enter(2))
+            HomeStat(Ic.Card, money(toCollect.sumOf { it.monthlyFee }), "Por cobrar", Modifier.weight(1f).enter(3))
         }
 
         // Estadísticas: medios de pago y descargas de la app
@@ -362,7 +362,7 @@ fun SuperHome(user: AppUser, go: (Tab) -> Unit) {
             )
             if (toCollect.isEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    IconBadge(Icons.Rounded.CheckCircle, Palette.Green, Palette.GreenSoft, 40.dp)
+                    IconBadge(Ic.CheckCircle, Palette.Green, Palette.GreenSoft, 40.dp)
                     Text("Todos los clientes están al día.", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                 }
             }

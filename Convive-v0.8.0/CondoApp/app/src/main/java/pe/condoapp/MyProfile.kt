@@ -49,7 +49,7 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(Icons.Rounded.ArrowBack, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(20.dp))
+            Icon(Ic.ChevronLeft, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(20.dp))
             Text("Volver", color = Palette.Teal, style = MaterialTheme.typography.labelLarge)
         }
 
@@ -73,7 +73,7 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
         when {
             c.plan == Plan.GRATIS -> AppCard(color = Palette.TealSoft, borderColor = Palette.TealSoft) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.Redeem, Palette.Teal, Palette.Surface)
+                    IconBadge(Ic.Gift, Palette.Teal, Palette.Surface)
                     Column(Modifier.weight(1f)) {
                         val trial = Store.planOf(c)?.trial == true
                         Text(if (trial) "Plan de prueba" else "Plan gratis", style = MaterialTheme.typography.titleMedium)
@@ -151,7 +151,7 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
 
             else -> AppCard {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.Payments, Palette.Navy, Palette.NavySoft)
+                    IconBadge(Ic.Cash, Palette.Navy, Palette.NavySoft)
                     Column(Modifier.weight(1f)) {
                         Text("La paga ${owner?.name ?: "otro administrador"}", style = MaterialTheme.typography.titleMedium)
                         Text(
@@ -176,7 +176,7 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
                             Text(a.name + if (a.id == user.id) " (tú)" else "", style = MaterialTheme.typography.titleMedium)
                             Text("@" + a.username, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                         }
-                        if (Store.isOwner(a)) Pill("Paga la suscripción", Palette.Navy, Palette.NavySoft, Icons.Rounded.CreditCard)
+                        if (Store.isOwner(a)) Pill("Paga la suscripción", Palette.Navy, Palette.NavySoft, Ic.Card)
                         else Pill("Administrador", roleFg(a.role), roleBg(a.role))
                     }
                 }
@@ -188,7 +188,7 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
         SectionTitle("¿Necesitas ayuda?")
         AppCard(onClick = { askHelp = true }) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                IconBadge(Icons.Rounded.SupportAgent, Palette.Teal, Palette.TealSoft)
+                IconBadge(Ic.Headset, Palette.Teal, Palette.TealSoft)
                 Column(Modifier.weight(1f)) {
                     Text("Escríbele al equipo de Convive", style = MaterialTheme.typography.titleMedium)
                     Text("Te responderemos lo antes posible.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -198,13 +198,13 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
         }
 
         SectionTitle("Cuenta")
-        SecondaryButton("Ver introducción", { Store.resetTips(); UiState.showOnboarding = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.HelpOutline)
+        SecondaryButton("Ver introducción", { Store.resetTips(); UiState.showOnboarding = true }, Modifier.fillMaxWidth(), icon = Ic.Help)
         PrimaryButton(
             "Cerrar sesión",
             { confirmLogout = true },
             Modifier.fillMaxWidth(),
             color = Palette.Red,
-            icon = Icons.Rounded.PowerSettingsNew
+            icon = Ic.Power
         )
         Spacer(Modifier.height(8.dp))
     }

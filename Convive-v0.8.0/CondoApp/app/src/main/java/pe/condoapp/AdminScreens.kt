@@ -91,7 +91,7 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
                 onClick = { UiState.myProfile = true }
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.Payments, if (late) Palette.Red else Palette.AmberDark, Palette.Surface)
+                    IconBadge(Ic.Cash, if (late) Palette.Red else Palette.AmberDark, Palette.Surface)
                     Column(Modifier.weight(1f)) {
                         Text(if (late) "Tu suscripción está vencida" else "Paga tu suscripción", style = MaterialTheme.typography.titleMedium)
                         Text(
@@ -121,7 +121,7 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
                         { Store.setEmergency(e.id, EmergencyStatus.CERRADA) },
                         Modifier.fillMaxWidth(),
                         color = Palette.Navy,
-                        icon = Icons.Rounded.Check
+                        icon = Ic.Check
                     )
                 }
             }
@@ -129,13 +129,13 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
 
         // Accesos rápidos
         val tiles = buildList<Triple<ImageVector, String, Pair<Tab, Int>>> {
-            if (Feature.COBROS in c.modules) add(Triple(Icons.Rounded.Payments, "Cobros", Tab.COBROS to overdue))
+            if (Feature.COBROS in c.modules) add(Triple(Ic.Cash, "Cobros", Tab.COBROS to overdue))
             if (meterReq != null || Store.featureOn(c, Feature.MEDIDORES)) {
-                add(Triple(Icons.Rounded.Bolt, "Medidores", Tab.MEDIDORES to (if (meterReq != null) tenants.size - sentCount else 0)))
+                add(Triple(Ic.Bolt, "Medidores", Tab.MEDIDORES to (if (meterReq != null) tenants.size - sentCount else 0)))
             }
-            if (Feature.INCIDENCIAS in c.modules) add(Triple(Icons.Rounded.Build, "Reportes", Tab.SERVICIOS to openInc))
-            if (Feature.AVISOS in c.modules) add(Triple(Icons.Rounded.Campaign, "Avisos", Tab.AVISOS to 0))
-            add(Triple(Icons.Rounded.Groups, "Personas", Tab.PERSONAS to 0))
+            if (Feature.INCIDENCIAS in c.modules) add(Triple(Ic.Gear, "Reportes", Tab.SERVICIOS to openInc))
+            if (Feature.AVISOS in c.modules) add(Triple(Ic.Megaphone, "Avisos", Tab.AVISOS to 0))
+            add(Triple(Ic.Users, "Personas", Tab.PERSONAS to 0))
         }
         tiles.chunked(5).forEach { row ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -150,7 +150,7 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
         if (toRenew.isNotEmpty()) {
             AppCard(color = Palette.AmberSoft, borderColor = Palette.Amber.copy(alpha = 0.45f)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.EditNote, Palette.AmberDark, Palette.Surface)
+                    IconBadge(Ic.EditNote, Palette.AmberDark, Palette.Surface)
                     Column(Modifier.weight(1f)) {
                         Text("Contratos por renovar", style = MaterialTheme.typography.titleMedium)
                         Text(
@@ -190,7 +190,7 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
         if (meterReq != null) {
             AppCard(onClick = { go(Tab.MEDIDORES) }) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.Bolt, Palette.AmberDark, Palette.AmberSoft)
+                    IconBadge(Ic.Bolt, Palette.AmberDark, Palette.AmberSoft)
                     Column(Modifier.weight(1f)) {
                         Text(meterReq.title, style = MaterialTheme.typography.titleMedium)
                         Text(
@@ -206,10 +206,10 @@ fun AdminPanel(user: AppUser, go: (Tab) -> Unit, showPersonasShortcut: Boolean) 
         }
 
         SectionTitle("Inquilinos", trailing = "${tenants.size}")
-        if (tenants.isEmpty()) EmptyState(Icons.Rounded.Groups, "Aún no hay inquilinos.")
+        if (tenants.isEmpty()) EmptyState(Ic.Users, "Aún no hay inquilinos.")
         ranked.take(5).forEach { t -> key(t.id) { TenantRow(t, showClient = false, showContract = true) { UiState.profileId = t.id } } }
         if (tenants.size > 5) {
-            SecondaryButton("Ver todos los inquilinos", { go(Tab.PERSONAS) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Groups)
+            SecondaryButton("Ver todos los inquilinos", { go(Tab.PERSONAS) }, Modifier.fillMaxWidth(), icon = Ic.Users)
         }
 
         if (Feature.AVISOS in c.modules && lastNotices.isNotEmpty()) {
@@ -245,7 +245,7 @@ private fun PendingEmergencyCard(e: Emergency) {
                 { Store.setEmergency(e.id, EmergencyStatus.CONFIRMADA) },
                 Modifier.weight(1f),
                 color = Palette.Red,
-                icon = Icons.Rounded.Campaign
+                icon = Ic.Megaphone
             )
         }
     }
@@ -269,15 +269,15 @@ fun AdminCobros(user: AppUser) {
             eyebrow = "Por cobrar",
             title = money(pendingTotal),
             subtitle = if (overdue > 0) "$overdue cobro(s) vencido(s)" else "Sin cobros vencidos",
-            icon = Icons.Rounded.Payments
+            icon = Ic.Cash
         )
         if (!showForm) {
-            SecondaryButton("Generar cobro", { showForm = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+            SecondaryButton("Generar cobro", { showForm = true }, Modifier.fillMaxWidth(), icon = Ic.Plus)
         } else {
             NewChargeForm(c) { showForm = false }
         }
         SectionTitle("Movimientos", trailing = "${list.size}")
-        if (list.isEmpty()) EmptyState(Icons.Rounded.Payments, "Aún no hay cobros.")
+        if (list.isEmpty()) EmptyState(Ic.Cash, "Aún no hay cobros.")
         list.forEach { ch ->
             key(ch.id) { ChargeCard(ch, onPay = { Store.markPaid(ch.id) }) }
         }
@@ -300,8 +300,8 @@ private fun NewChargeForm(c: Client, onDone: () -> Unit) {
         } else {
             Text("Domicilio", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
             ChoiceChips(unitNames, unit) { unit = it }
-            AppTextField(concept, { concept = it }, "Concepto", icon = Icons.Rounded.Description)
-            AppTextField(amount, { amount = it }, "Monto (S/)", icon = Icons.Rounded.Payments, keyboardType = KeyboardType.Decimal)
+            AppTextField(concept, { concept = it }, "Concepto", icon = Ic.Doc)
+            AppTextField(amount, { amount = it }, "Monto (S/)", icon = Ic.Cash, keyboardType = KeyboardType.Decimal)
             Text("Vence el día 5 del próximo mes.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -336,7 +336,7 @@ fun AdminServicios(user: AppUser) {
             style = MaterialTheme.typography.bodyMedium,
             color = Palette.Muted
         )
-        if (list.isEmpty()) EmptyState(Icons.Rounded.Build, "No hay reportes de fallas.")
+        if (list.isEmpty()) EmptyState(Ic.Gear, "No hay reportes de fallas.")
         list.forEach { inc ->
             key(inc.id) {
                 AppCard {
@@ -359,7 +359,7 @@ fun AdminServicios(user: AppUser) {
                                 "Resuelto",
                                 { Store.setIncidentStatus(inc.id, IncidentStatus.RESUELTO) },
                                 Modifier.weight(1f),
-                                icon = Icons.Rounded.Check
+                                icon = Ic.Check
                             )
                         }
                     }
@@ -404,7 +404,7 @@ fun AdminAvisos(user: AppUser) {
     ScreenColumn {
         SectionTitle("Avisos", trailing = "${list.size} publicados")
         if (!showForm) {
-            PrimaryButton("Publicar aviso", { showForm = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Campaign)
+            PrimaryButton("Publicar aviso", { showForm = true }, Modifier.fillMaxWidth(), icon = Ic.Megaphone)
         } else {
             AppCard(padding = 18.dp) {
                 Text("Nuevo aviso", style = MaterialTheme.typography.titleLarge)
@@ -413,7 +413,7 @@ fun AdminAvisos(user: AppUser) {
                     category,
                     icons = NOTICE_CATEGORIES.associateWith { noticeIcon(it) }
                 ) { category = it }
-                AppTextField(title, { title = it }, "Título", icon = Icons.Rounded.Title)
+                AppTextField(title, { title = it }, "Título", icon = Ic.TextT)
                 AppTextField(body, { body = it }, "Detalle (fecha, hora, zona)", singleLine = false, minLines = 3)
 
                 Text("Foto o comunicado (opcional)", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
@@ -433,13 +433,13 @@ fun AdminAvisos(user: AppUser) {
                             },
                             modifier = Modifier.align(Alignment.TopEnd).padding(6.dp).size(34.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f))
                         ) {
-                            Icon(Icons.Rounded.Close, contentDescription = "Quitar foto", tint = Color.White, modifier = Modifier.size(18.dp))
+                            Icon(Ic.Close, contentDescription = "Quitar foto", tint = Color.White, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SecondaryButton("Tomar foto", picker.camera, Modifier.weight(1f), icon = Icons.Rounded.PhotoCamera)
-                    SecondaryButton("Galería", picker.gallery, Modifier.weight(1f), icon = Icons.Rounded.PhotoLibrary)
+                    SecondaryButton("Tomar foto", picker.camera, Modifier.weight(1f), icon = Ic.Camera)
+                    SecondaryButton("Galería", picker.gallery, Modifier.weight(1f), icon = Ic.Image)
                 }
                 error?.let { ErrorText(it) }
 
@@ -465,7 +465,7 @@ fun AdminAvisos(user: AppUser) {
                 }
             }
         }
-        if (list.isEmpty()) EmptyState(Icons.Rounded.Campaign, "Todavía no hay avisos.")
+        if (list.isEmpty()) EmptyState(Ic.Megaphone, "Todavía no hay avisos.")
         list.forEach { n ->
             key(n.id) { NoticeCard(n, onArchive = { Store.removeNotice(n.id) }) }
         }
@@ -492,14 +492,14 @@ fun AdminPersonas(user: AppUser, onBack: (() -> Unit)? = null) {
         SectionTitle("Personas", trailing = "${admins.size + tenants.size} cuentas")
         TenantSearch(c.id)
         if (!showForm) {
-            PrimaryButton("Agregar persona", { showForm = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PersonAdd)
+            PrimaryButton("Agregar persona", { showForm = true }, Modifier.fillMaxWidth(), icon = Ic.UserPlus)
         } else {
             AccountForm(fixedClient = c, allowedRoles = listOf(Role.ADMIN, Role.TENANT), onDone = { showForm = false })
         }
         SectionTitle("Administradores", trailing = "${admins.size}")
         admins.forEach { key(it.id) { UserRow(it, canDelete = false) } }
         SectionTitle("Inquilinos", trailing = "${tenants.size}")
-        if (tenants.isEmpty()) EmptyState(Icons.Rounded.Groups, "Aún no hay inquilinos.")
+        if (tenants.isEmpty()) EmptyState(Ic.Users, "Aún no hay inquilinos.")
         tenants.forEach { t -> key(t.id) { TenantRow(t, showClient = false, showContract = true) { UiState.profileId = t.id } } }
     }
 }

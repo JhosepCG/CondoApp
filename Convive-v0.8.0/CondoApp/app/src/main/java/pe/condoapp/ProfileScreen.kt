@@ -48,7 +48,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Icon(Icons.Rounded.ArrowBack, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(20.dp))
+            Icon(Ic.ChevronLeft, contentDescription = null, tint = Palette.Teal, modifier = Modifier.size(20.dp))
             Text("Volver", color = Palette.Teal, style = MaterialTheme.typography.labelLarge)
         }
 
@@ -79,7 +79,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
                     !st.upToDate -> "Pendiente"
                     else -> "Al día"
                 },
-                Icons.Rounded.Payments,
+                Ic.Cash,
                 when {
                     st.overdue > 0 -> Palette.Red
                     !st.upToDate -> Palette.AmberDark
@@ -95,7 +95,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
                         false -> "Falta foto"
                         null -> "Sin pedido"
                     },
-                    Icons.Rounded.Bolt,
+                    Ic.Bolt,
                     when (st.meterSent) {
                         true -> Palette.Green
                         false -> Palette.AmberDark
@@ -107,7 +107,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
             StatusTile(
                 "Reportes",
                 if (st.openIncidents == 0) "Ninguno" else "${st.openIncidents} abierto" + if (st.openIncidents > 1) "s" else "",
-                Icons.Rounded.Build,
+                Ic.Gear,
                 if (st.openIncidents == 0) Palette.Green else Palette.Navy,
                 Modifier.weight(1f)
             )
@@ -120,7 +120,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
 
         if (Store.featureOn(c, Feature.COBROS)) {
             SectionTitle("Pagos", trailing = if (st.upToDate) "Al día" else "Debe ${money(st.owed)}")
-            if (charges.isEmpty()) EmptyState(Icons.Rounded.Payments, "Sin cobros registrados.")
+            if (charges.isEmpty()) EmptyState(Ic.Cash, "Sin cobros registrados.")
             charges.take(6).forEach { ch ->
                 key(ch.id) { ChargeCard(ch, onPay = if (viewer.role == Role.ADMIN) ({ payId = ch.id }) else null) }
             }
@@ -131,7 +131,7 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
             if (req != null && st.meterSent == false) {
                 AppCard(color = Palette.AmberSoft, borderColor = Palette.AmberSoft, padding = 14.dp) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconBadge(Icons.Rounded.Bolt, Palette.AmberDark, Palette.Surface, 38.dp)
+                        IconBadge(Ic.Bolt, Palette.AmberDark, Palette.Surface, 38.dp)
                         Column(Modifier.weight(1f)) {
                             Text("Falta tomar la foto", style = MaterialTheme.typography.titleMedium)
                             Text(req.title, style = MaterialTheme.typography.bodySmall, color = Palette.AmberDark)
@@ -139,13 +139,13 @@ fun TenantProfile(viewer: AppUser, tenantId: String, onBack: () -> Unit) {
                     }
                 }
             }
-            if (readings.isEmpty()) EmptyState(Icons.Rounded.Bolt, "Aún no envió fotos del medidor.")
+            if (readings.isEmpty()) EmptyState(Ic.Bolt, "Aún no envió fotos del medidor.")
             readings.take(4).forEach { m -> key(m.id) { ReadingRow(m, showUser = false) { viewing = m } } }
         }
 
         if (Store.featureOn(c, Feature.INCIDENCIAS)) {
             SectionTitle("Reportes", trailing = "${incidents.size}")
-            if (incidents.isEmpty()) EmptyState(Icons.Rounded.Build, "No tiene reportes.")
+            if (incidents.isEmpty()) EmptyState(Ic.Gear, "No tiene reportes.")
             incidents.take(5).forEach { inc ->
                 key(inc.id) {
                     AppCard(padding = 14.dp) {

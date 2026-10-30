@@ -44,7 +44,7 @@ private fun methodColor(m: String) = when (m) {
 
 private fun methodShort(m: String) = if (m.startsWith("Tarjeta")) "Tarjeta" else m
 
-private fun methodIcon(m: String): ImageVector = if (m.startsWith("Tarjeta")) Icons.Rounded.CreditCard else Icons.Rounded.PhoneIphone
+private fun methodIcon(m: String): ImageVector = if (m.startsWith("Tarjeta")) Ic.Card else Ic.Phone
 
 /** Tarjeta blanca con título y subtítulo, igual que "Clientes por cobrar". */
 @Composable
@@ -159,7 +159,7 @@ fun DownloadsCard(modifier: Modifier = Modifier) {
 
     StatsCard("Descargas de la app", "Personas que instalaron Convive", modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            GradientIcon(Icons.Rounded.Download, 44.dp)
+            GradientIcon(Ic.Download, 44.dp)
             Column(Modifier.weight(1f)) {
                 CountUpText(
                     dates.size.toDouble(),

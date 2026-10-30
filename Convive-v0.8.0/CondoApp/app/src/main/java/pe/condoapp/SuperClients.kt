@@ -145,7 +145,7 @@ fun SuperClientes() {
     ScreenColumn {
         SearchField(q, { q = it }, "Buscar")
         FlatChipsOutlined(listOf("Todos", "Condominios", "Casa"), filter) { filter = it }
-        if (list.isEmpty()) EmptyState(Icons.Rounded.Apartment, "No hay clientes que coincidan.")
+        if (list.isEmpty()) EmptyState(Ic.Building, "No hay clientes que coincidan.")
         list.forEachIndexed { i, c -> key(c.id) { ClientListRow(c, Modifier.enter(i)) { UiState.openClientId = c.id } } }
         Spacer(Modifier.height(8.dp))
     }
@@ -191,7 +191,7 @@ private fun ClientListRow(c: Client, modifier: Modifier = Modifier, onClick: () 
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                if (c.template == Template.CONDOMINIO) Icons.Rounded.Apartment else Icons.Rounded.Home,
+                if (c.template == Template.CONDOMINIO) Ic.Building else Ic.Home,
                 contentDescription = null,
                 tint = Palette.Teal,
                 modifier = Modifier.size(24.dp)
@@ -213,7 +213,7 @@ private fun ClientListRow(c: Client, modifier: Modifier = Modifier, onClick: () 
             )
         }
         if (!c.active) StatusTag("Inactivo", Palette.Muted, Palette.NavySoft) else SubTag(Store.subStatus(c))
-        Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
+        Icon(Ic.ChevronRight, contentDescription = null, tint = Palette.Ink, modifier = Modifier.size(26.dp))
     }
 }
 
@@ -283,7 +283,7 @@ private fun ClientDetailCard(c: Client, onDelete: () -> Unit) {
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        if (c.template == Template.CONDOMINIO) Icons.Rounded.Apartment else Icons.Rounded.Home,
+                        if (c.template == Template.CONDOMINIO) Ic.Building else Ic.Home,
                         contentDescription = null,
                         tint = Palette.Teal,
                         modifier = Modifier.size(24.dp)
@@ -330,7 +330,7 @@ private fun ClientDetailCard(c: Client, onDelete: () -> Unit) {
                         text.toDoubleOrNull()?.let { v -> Store.updateClient(c.copy(monthlyFee = v)) }
                     },
                     if (c.plan == Plan.ANUAL) "Anualidad (S/)" else "Mensualidad (S/)",
-                    icon = Icons.Rounded.CreditCard,
+                    icon = Ic.Card,
                     keyboardType = KeyboardType.Decimal
                 )
             }
@@ -391,7 +391,7 @@ private fun ClientDetailCard(c: Client, onDelete: () -> Unit) {
                     }
                 },
                 "Recargo por mora (%)",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Decimal
             )
 
@@ -461,7 +461,7 @@ fun SuperNewClient(onDone: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("Nuevo cliente", style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp, fontWeight = FontWeight.Bold))
-            AppTextField(name, { name = it; error = null }, "Nombre del condominio o casa", icon = Icons.Rounded.Apartment, placeholder = "Ej. Casa")
+            AppTextField(name, { name = it; error = null }, "Nombre del condominio o casa", icon = Ic.Building, placeholder = "Ej. Casa")
 
             SectionLabel("Categoría")
             FlatChips(listOf("Condominio", "Casa"), template?.let { categoryLabel(it) }) { l ->
@@ -484,7 +484,7 @@ fun SuperNewClient(onDone: () -> Unit) {
                 if (plan == Plan.GRATIS) "0.00" else fee,
                 { if (plan != Plan.GRATIS) fee = it.filter { ch -> ch.isDigit() || ch == '.' }; error = null },
                 if (plan == Plan.ANUAL) "Anualidad (S/)" else "Mensualidad (S/)",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Decimal
             )
             planSel?.let { p -> if (p.trial) Text("Prueba gratis de $TRIAL_DAYS días; luego aparece como vencido.", style = MaterialTheme.typography.bodySmall, color = Palette.Muted) }
@@ -492,12 +492,12 @@ fun SuperNewClient(onDone: () -> Unit) {
             SectionLabel("Métodos de pagos")
             FlatChips(PAYMENT_METHODS, method) { method = it }
 
-            AppTextField(owner, { owner = it; error = null }, "Nombre completo", icon = Icons.Rounded.PersonOutline, placeholder = "Ej. Pedro")
+            AppTextField(owner, { owner = it; error = null }, "Nombre completo", icon = Ic.User, placeholder = "Ej. Pedro")
             AppTextField(
                 dni,
                 { dni = it.filter { ch -> ch.isDigit() }.take(8); error = null },
                 "DNI",
-                icon = Icons.Rounded.Badge,
+                icon = Ic.IdCard,
                 keyboardType = KeyboardType.Number,
                 placeholder = "Ej. 87654321"
             )
@@ -505,7 +505,7 @@ fun SuperNewClient(onDone: () -> Unit) {
                 phone,
                 { phone = it.filter { ch -> ch.isDigit() }.take(9); error = null },
                 "Celular",
-                icon = Icons.Rounded.PhoneAndroid,
+                icon = Ic.Phone,
                 keyboardType = KeyboardType.Phone,
                 placeholder = "Ej. 987 654 321"
             )
@@ -519,7 +519,7 @@ fun SuperNewClient(onDone: () -> Unit) {
                 if (moraOn) late else "0",
                 { if (moraOn) late = it },
                 "Recargo por mora (%)",
-                icon = Icons.Rounded.CreditCard,
+                icon = Ic.Card,
                 keyboardType = KeyboardType.Decimal
             )
 
@@ -546,7 +546,7 @@ fun SuperNewClient(onDone: () -> Unit) {
 
     created?.let { d ->
         ResultDialog(
-            icon = Icons.Rounded.CheckCircle,
+            icon = Ic.CheckCircle,
             iconTint = Palette.Green,
             iconBg = Palette.GreenSoft,
             title = "Cliente creado",
@@ -578,7 +578,7 @@ fun DeleteUserFlow(name: String, onConfirmDelete: () -> Unit, onCancel: () -> Un
     when (step) {
         0 -> Dialog(onDismissRequest = onCancel, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             DialogCard {
-                CircleIcon(Icons.Rounded.DeleteOutline, Palette.Red, Palette.RedSoft)
+                CircleIcon(Ic.Trash, Palette.Red, Palette.RedSoft)
                 Text(
                     "¿Deseas eliminar este usuario?",
                     style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold),
@@ -625,7 +625,7 @@ fun DeleteUserFlow(name: String, onConfirmDelete: () -> Unit, onCancel: () -> Un
             }
         }
         else -> ResultDialog(
-            icon = Icons.Rounded.CheckCircle,
+            icon = Ic.CheckCircle,
             iconTint = Palette.Green,
             iconBg = Palette.GreenSoft,
             title = "Se ha eliminado correctamente",
@@ -671,7 +671,7 @@ fun ResultDialog(
 ) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         DialogCard {
-            if (icon == Icons.Rounded.CheckCircle) AnimatedCheck(64.dp, iconTint, iconBg) else CircleIcon(icon, iconTint, iconBg)
+            if (icon == Ic.CheckCircle) AnimatedCheck(64.dp, iconTint, iconBg) else CircleIcon(icon, iconTint, iconBg)
             Text(title, style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp, fontWeight = FontWeight.Bold), textAlign = TextAlign.Center)
             Text(text, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 21.sp), color = Palette.Muted, textAlign = TextAlign.Center)
             Button(

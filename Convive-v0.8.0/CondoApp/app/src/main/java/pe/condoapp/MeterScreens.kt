@@ -61,7 +61,7 @@ fun TenantMedidor(user: AppUser) {
         when {
             req == null -> AppCard {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.Bolt, Palette.Teal, Palette.TealSoft)
+                    IconBadge(Ic.Bolt, Palette.Teal, Palette.TealSoft)
                     Column(Modifier.weight(1f)) {
                         Text("Sin pedidos por ahora", style = MaterialTheme.typography.titleMedium)
                         Text(
@@ -74,7 +74,7 @@ fun TenantMedidor(user: AppUser) {
             }
             sentForReq != null -> AppCard(color = Palette.GreenSoft, borderColor = Palette.GreenSoft) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    IconBadge(Icons.Rounded.CheckCircle, Palette.Green, Palette.Surface)
+                    IconBadge(Ic.CheckCircle, Palette.Green, Palette.Surface)
                     Column(Modifier.weight(1f)) {
                         Text("Ya enviaste tu foto", style = MaterialTheme.typography.titleMedium)
                         Text("${req.title} · ${sentForReq.sentAt}", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
@@ -91,7 +91,7 @@ fun TenantMedidor(user: AppUser) {
                     borderColor = if (late) Palette.RedSoft else Palette.AmberSoft
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconBadge(Icons.Rounded.Bolt, fg, Palette.Surface)
+                        IconBadge(Ic.Bolt, fg, Palette.Surface)
                         Column(Modifier.weight(1f)) {
                             Text(req.title, style = MaterialTheme.typography.titleMedium)
                             Text(
@@ -115,18 +115,18 @@ fun TenantMedidor(user: AppUser) {
             )
             PhotoBox(photo, 220.dp)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                SecondaryButton("Tomar foto", openCamera, Modifier.weight(1f), icon = Icons.Rounded.PhotoCamera)
-                SecondaryButton("Galería", openGallery, Modifier.weight(1f), icon = Icons.Rounded.PhotoLibrary)
+                SecondaryButton("Tomar foto", openCamera, Modifier.weight(1f), icon = Ic.Camera)
+                SecondaryButton("Galería", openGallery, Modifier.weight(1f), icon = Ic.Image)
             }
             AppTextField(
                 reading,
                 { reading = it.filter { ch -> ch.isDigit() || ch == '.' } },
                 "Lectura en kWh (opcional)",
-                icon = Icons.Rounded.Bolt,
+                icon = Ic.Bolt,
                 keyboardType = KeyboardType.Decimal
             )
             error?.let { ErrorText(it) }
-            if (sent) Pill("Foto enviada a la administración", Palette.Green, Palette.GreenSoft, Icons.Rounded.CheckCircle)
+            if (sent) Pill("Foto enviada a la administración", Palette.Green, Palette.GreenSoft, Ic.CheckCircle)
             PrimaryButton(
                 "Enviar a la administración",
                 {
@@ -144,7 +144,7 @@ fun TenantMedidor(user: AppUser) {
         }
 
         SectionTitle("Mis envíos", trailing = "${mine.size}")
-        if (mine.isEmpty()) EmptyState(Icons.Rounded.Bolt, "Aún no enviaste fotos del medidor.")
+        if (mine.isEmpty()) EmptyState(Ic.Bolt, "Aún no enviaste fotos del medidor.")
         mine.forEach { m -> key(m.id) { ReadingRow(m, showUser = false, onClick = null) } }
     }
 }
@@ -176,7 +176,7 @@ fun AdminMedidores(user: AppUser) {
         } else {
             val sentCount = tenants.count { t -> Store.readingFor(req.id, t.id) != null }
             val fraction = if (tenants.isEmpty()) 0f else sentCount.toFloat() / tenants.size
-            HeroCard("Pedido de fotos", req.title, "Fecha límite: ${req.due.format(dateFmt)}", Icons.Rounded.Bolt) {
+            HeroCard("Pedido de fotos", req.title, "Fecha límite: ${req.due.format(dateFmt)}", Ic.Bolt) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "$sentCount de ${tenants.size} inquilinos enviaron su foto",
@@ -207,13 +207,13 @@ fun AdminMedidores(user: AppUser) {
                         reminded = true
                     },
                     Modifier.weight(1f),
-                    icon = Icons.Rounded.Campaign
+                    icon = Ic.Megaphone
                 )
-                SecondaryButton("Cerrar pedido", { confirmClose = true }, Modifier.weight(1f), icon = Icons.Rounded.Check)
+                SecondaryButton("Cerrar pedido", { confirmClose = true }, Modifier.weight(1f), icon = Ic.Check)
             }
 
             SectionTitle("Inquilinos", trailing = "$sentCount/${tenants.size} enviados")
-            if (tenants.isEmpty()) EmptyState(Icons.Rounded.Groups, "Aún no hay inquilinos.")
+            if (tenants.isEmpty()) EmptyState(Ic.Users, "Aún no hay inquilinos.")
             tenants.forEach { t ->
                 val r = Store.readingFor(req.id, t.id)
                 key(t.id) {
@@ -271,7 +271,7 @@ private fun NewMeterRequestForm(c: Client, canCancel: Boolean, onDone: () -> Uni
             style = MaterialTheme.typography.bodyMedium,
             color = Palette.Muted
         )
-        AppTextField(title, { title = it }, "Título del pedido", icon = Icons.Rounded.Bolt)
+        AppTextField(title, { title = it }, "Título del pedido", icon = Ic.Bolt)
         Text("Fecha límite", style = MaterialTheme.typography.labelLarge, color = Palette.Muted)
         ChoiceChips(quick.map { it.first } + "Otra fecha", selected) { label ->
             val q = quick.firstOrNull { it.first == label }
@@ -290,7 +290,7 @@ private fun NewMeterRequestForm(c: Client, canCancel: Boolean, onDone: () -> Uni
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(Icons.Rounded.Event, contentDescription = null, tint = Palette.Teal)
+            Icon(Ic.Calendar, contentDescription = null, tint = Palette.Teal)
             Column(Modifier.weight(1f)) {
                 Text("Hasta el", style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                 Text(due.format(dateFmt), style = MaterialTheme.typography.titleMedium)
@@ -309,7 +309,7 @@ private fun NewMeterRequestForm(c: Client, canCancel: Boolean, onDone: () -> Uni
                 },
                 Modifier.weight(1f),
                 enabled = title.isNotBlank() && !due.isBefore(LocalDate.now()),
-                icon = Icons.Rounded.Campaign
+                icon = Ic.Megaphone
             )
         }
     }
@@ -321,7 +321,7 @@ private fun PendingMeterRow(t: AppUser, req: MeterRequest) {
     AppCard(padding = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             IconBadge(
-                if (late) Icons.Rounded.ErrorOutline else Icons.Rounded.Schedule,
+                if (late) Ic.AlertCircle else Ic.Clock,
                 if (late) Palette.Red else Palette.AmberDark,
                 if (late) Palette.RedSoft else Palette.AmberSoft,
                 56.dp
@@ -370,7 +370,7 @@ fun PhotoBox(path: String?, height: Dp) {
             )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                IconBadge(Icons.Rounded.AddAPhoto, Palette.Muted, Palette.NavySoft, 56.dp)
+                IconBadge(Ic.ImagePlus, Palette.Muted, Palette.NavySoft, 56.dp)
                 Text("Aún no hay foto", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
             }
         }
@@ -404,7 +404,7 @@ fun ReadingRow(m: MeterReading, showUser: Boolean, onClick: (() -> Unit)?) {
                         modifier = Modifier.fillMaxSize()
                     )
                 } else {
-                    Icon(Icons.Rounded.Bolt, contentDescription = null, tint = Palette.Muted)
+                    Icon(Ic.Bolt, contentDescription = null, tint = Palette.Muted)
                 }
             }
             Column(Modifier.weight(1f)) {
