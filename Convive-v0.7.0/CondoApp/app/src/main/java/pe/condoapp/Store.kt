@@ -713,7 +713,7 @@ object Store {
                 AppUser("u6", "Rosa Huamán", "rosa", "1234", Role.TENANT, "c2", "Depa 1"),
                 AppUser("u7", "Diego Salas", "diego", "1234", Role.TENANT, "c2", "Depa 3"),
                 AppUser("u8", "Sofía Quispe", "sofia", "1234", Role.ADMIN, "c2", null, dni = "76543210", phone = "912345678"),
-                AppUser("u9", "Luis Rojas", "luis", "1234", Role.ADMIN, "c3", null, dni = "45678912", phone = "934567812")
+                AppUser("u9", "Luis Rojas", "luis", "1234", Role.ADMIN, "c3", null, dni = "48123456", phone = "934567812")
             )
         )
         units.addAll(

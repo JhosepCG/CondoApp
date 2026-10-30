@@ -172,8 +172,8 @@ fun DownloadsCard(modifier: Modifier = Modifier) {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            MiniStat("$todayCount", "Hoy", Modifier.weight(1f))
-            MiniStat(String.format(java.util.Locale.US, "%.1f", avg), "Promedio por día", Modifier.weight(1f))
+            DayStat("$todayCount", "Hoy", Modifier.weight(1f))
+            DayStat(String.format(java.util.Locale.US, "%.1f", avg), "Promedio por día", Modifier.weight(1f))
         }
 
         DailyDownloads(days)
@@ -181,7 +181,7 @@ fun DownloadsCard(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun MiniStat(value: String, label: String, modifier: Modifier) {
+private fun DayStat(value: String, label: String, modifier: Modifier) {
     Column(
         modifier.clip(RoundedCornerShape(10.dp)).background(Palette.Field).padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
