@@ -207,7 +207,7 @@ fun SubscriptionRow(c: Client, inEditor: Boolean = false) {
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "Owner: ${owner?.name ?: "sin administrador"}" +
+                    "Responsable del pago: ${owner?.name ?: "sin administrador"}" +
                         if (c.plan != Plan.GRATIS) " · ${Store.feeLabel(c)} · vence ${Store.subDue(Store.periodFor(c)).format(dateFmt)}" else "",
                     style = MaterialTheme.typography.bodySmall,
                     color = Palette.Muted,

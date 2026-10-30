@@ -63,7 +63,7 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                HeroInfo("Rol", if (isOwner) "Owner" else "Administrador", Modifier.weight(1f))
+                HeroInfo("Rol", "Administrador", Modifier.weight(1f))
                 HeroInfo("Cliente", c.name, Modifier.weight(1.4f))
             }
         }
@@ -153,9 +153,9 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     IconBadge(Icons.Rounded.Payments, Palette.Navy, Palette.NavySoft)
                     Column(Modifier.weight(1f)) {
-                        Text("La paga el owner", style = MaterialTheme.typography.titleMedium)
+                        Text("La paga ${owner?.name ?: "otro administrador"}", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "${owner?.name ?: "El owner"} es responsable del pago de la suscripción. Tú tienes las mismas funciones de administrador.",
+                            "${owner?.name ?: "Otro administrador"} es responsable del pago de la suscripción. Tú tienes las mismas funciones de administrador.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Palette.Muted
                         )
@@ -176,7 +176,7 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
                             Text(a.name + if (a.id == user.id) " (tú)" else "", style = MaterialTheme.typography.titleMedium)
                             Text("@" + a.username, style = MaterialTheme.typography.bodySmall, color = Palette.Muted)
                         }
-                        if (Store.isOwner(a)) Pill("Owner", Palette.Navy, Palette.NavySoft, Icons.Rounded.WorkspacePremium)
+                        if (Store.isOwner(a)) Pill("Paga la suscripción", Palette.Navy, Palette.NavySoft, Icons.Rounded.CreditCard)
                         else Pill("Administrador", roleFg(a.role), roleBg(a.role))
                     }
                 }

@@ -343,7 +343,7 @@ private fun ClientDetailCard(c: Client, onDelete: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Suscripción de $monthName", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
-                        Text("Owner: ${owner?.name ?: "sin administrador"}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
+                        Text("Responsable del pago: ${owner?.name ?: "sin administrador"}", style = MaterialTheme.typography.bodyMedium, color = Palette.Muted)
                         Text(
                             if (pay != null) "Facturación: ${parsePaid(pay.paidAt, period)}"
                             else if (c.plan == Plan.GRATIS) "Sin cobro"

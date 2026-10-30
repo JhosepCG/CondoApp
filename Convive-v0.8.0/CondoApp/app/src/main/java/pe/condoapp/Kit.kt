@@ -373,8 +373,8 @@ fun SubPill(st: SubStatus) {
     }
 }
 
-/** Rol que se muestra: "Owner" para el administrador responsable del pago. */
-fun roleLabel(u: AppUser): String = if (Store.isOwner(u)) "Owner" else u.role.label
+/** Rol que se muestra: solo existen Super Admin, Administrador e Inquilino. */
+fun roleLabel(u: AppUser): String = u.role.label
 
 /** Foto de perfil si existe; si no, las iniciales. */
 @Composable
