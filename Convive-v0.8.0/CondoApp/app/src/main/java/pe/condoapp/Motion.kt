@@ -1,5 +1,6 @@
 package pe.condoapp
 
+import android.provider.Settings
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -50,16 +52,50 @@ import kotlinx.coroutines.launch
 // ------------------------------------------------------------------
 
 object Motion {
-    /** Resorte suave para entradas y botones (equivalente a Motion "spring"). */
-    val Soft = spring<Float>(dampingRatio = 0.72f, stiffness = 380f)
-    val Bouncy = spring<Float>(dampingRatio = 0.48f, stiffness = 420f)
-    const val STAGGER_MS = 55L
+    /** Curvas fuertes (Emil Kowalski): las de serie se sienten tibias. */
+    val EaseOut = CubicBezierEasing(0.23f, 1f, 0.32f, 1f)       // entradas, respuestas de la interfaz
+    val EaseInOut = CubicBezierEasing(0.77f, 0f, 0.175f, 1f)    // algo que se mueve dentro de la pantalla
+    val EaseDrawer = CubicBezierEasing(0.32f, 0.72f, 0f, 1f)    // pantallas que se apilan (tipo iOS)
+
+    /** Duraciones: la interfaz siempre por debajo de 300 ms. */
+    const val PRESS_MS = 120
+    const val RELEASE_MS = 180
+    const val QUICK_MS = 200
+    const val SCREEN_MS = 280
+
+    /** Resortes sin rebote para la interfaz; el rebote queda solo para momentos de celebración. */
+    val Soft = spring<Float>(dampingRatio = 1f, stiffness = 500f)
+    val Bouncy = spring<Float>(dampingRatio = 0.7f, stiffness = 420f)
+    const val STAGGER_MS = 45L
 }
 
-/** Botón que se hunde un poco al presionarlo y rebota al soltarlo (Motion: whileTap). */
-fun Modifier.pressScale(pressed: Float = 0.95f): Modifier = composed {
+/**
+ * true cuando el usuario apagó las animaciones del sistema
+ * (Opciones de desarrollador o Accesibilidad > Quitar animaciones).
+ * Menos movimiento no es cero: se mantienen los desvanecidos y se quitan los desplazamientos.
+ */
+@Composable
+fun reduceMotion(): Boolean {
+    val ctx = LocalContext.current
+    return remember(ctx) {
+        runCatching {
+            Settings.Global.getFloat(ctx.contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+        }.getOrDefault(false)
+    }
+}
+
+/**
+ * Se hunde apenas al presionar y vuelve rápido al soltar (whileTap).
+ * Escala sutil (0.95–0.98) y sin rebote: presionar responde al instante, soltar es ágil.
+ */
+fun Modifier.pressScale(pressed: Float = 0.97f): Modifier = composed {
+    val target = pressed.coerceIn(0.95f, 0.99f)
     var down by remember { mutableStateOf(false) }
-    val s by animateFloatAsState(if (down) pressed else 1f, Motion.Bouncy, label = "press")
+    val s by animateFloatAsState(
+        if (down) target else 1f,
+        tween(if (down) Motion.PRESS_MS else Motion.RELEASE_MS, easing = Motion.EaseOut),
+        label = "press"
+    )
     this
         .graphicsLayer { scaleX = s; scaleY = s }
         .pointerInput(Unit) {
@@ -73,28 +109,30 @@ fun Modifier.pressScale(pressed: Float = 0.95f): Modifier = composed {
 }
 
 /**
- * Entrada escalonada: aparece desde abajo con desvanecido (Animate.css fadeInUp + anime.js stagger).
- * [index] define el retraso para que las tarjetas entren una tras otra.
+ * Entrada escalonada: aparece desde abajo con desvanecido.
+ * [index] define el retraso para que las tarjetas entren una tras otra (máx. 10 escalones).
  */
-fun Modifier.enter(index: Int = 0, distance: Dp = 18.dp): Modifier = composed {
+fun Modifier.enter(index: Int = 0, distance: Dp = 10.dp): Modifier = composed {
+    val reduce = reduceMotion()
     val progress = remember { Animatable(0f) }
     val px = with(LocalDensity.current) { distance.toPx() }
     LaunchedEffect(Unit) {
         delay(index.coerceAtMost(10) * Motion.STAGGER_MS)
-        progress.animateTo(1f, spring(dampingRatio = 0.8f, stiffness = 260f))
+        progress.animateTo(1f, tween(Motion.SCREEN_MS, easing = Motion.EaseOut))
     }
     graphicsLayer {
         alpha = progress.value.coerceIn(0f, 1f)
-        translationY = (1f - progress.value) * px
+        translationY = if (reduce) 0f else (1f - progress.value) * px
     }
 }
 
-/** Ventanas que aparecen con un pequeño rebote (Animate.css zoomIn / Motion spring). */
+/** Ventanas y tarjetas emergentes: crecen desde 0.95 con desvanecido (nunca desde cero). */
 fun Modifier.popIn(): Modifier = composed {
+    val reduce = reduceMotion()
     val k = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { k.animateTo(1f, spring(dampingRatio = 0.62f, stiffness = 420f)) }
+    LaunchedEffect(Unit) { k.animateTo(1f, tween(240, easing = Motion.EaseOut)) }
     graphicsLayer {
-        val s = 0.86f + 0.14f * k.value
+        val s = if (reduce) 1f else 0.95f + 0.05f * k.value
         scaleX = s; scaleY = s
         alpha = k.value.coerceIn(0f, 1f)
     }
@@ -102,6 +140,7 @@ fun Modifier.popIn(): Modifier = composed {
 
 /** Balanceo corto y horizontal para errores (Animate.css headShake). Cambia [trigger] para dispararlo. */
 fun Modifier.shake(trigger: Int): Modifier = composed {
+    if (reduceMotion()) return@composed this
     val x = remember { Animatable(0f) }
     val px = with(LocalDensity.current) { 10.dp.toPx() }
     LaunchedEffect(trigger) {
@@ -113,12 +152,13 @@ fun Modifier.shake(trigger: Int): Modifier = composed {
 
 /** Campana que se balancea cada pocos segundos cuando hay algo nuevo (Animate.css swing). */
 fun Modifier.ring(active: Boolean): Modifier = composed {
+    val reduce = reduceMotion()
     val r = remember { Animatable(0f) }
-    LaunchedEffect(active) {
-        if (!active) { r.snapTo(0f); return@LaunchedEffect }
+    LaunchedEffect(active, reduce) {
+        if (!active || reduce) { r.snapTo(0f); return@LaunchedEffect }
         while (true) {
             for (v in listOf(16f, -12f, 9f, -6f, 3f, 0f)) r.animateTo(v, tween(90))
-            delay(2600)
+            delay(4200)
         }
     }
     graphicsLayer {
@@ -129,6 +169,7 @@ fun Modifier.ring(active: Boolean): Modifier = composed {
 
 /** Flota de arriba a abajo sin parar (ilustraciones vivas, como un Lottie en bucle). */
 fun Modifier.floating(amplitude: Dp = 6.dp, periodMs: Int = 2600, phase: Int = 0): Modifier = composed {
+    if (reduceMotion()) return@composed this
     val t = rememberInfiniteTransition(label = "float")
     val v by t.animateFloat(
         -1f, 1f,
@@ -141,6 +182,7 @@ fun Modifier.floating(amplitude: Dp = 6.dp, periodMs: Int = 2600, phase: Int = 0
 
 /** Latido para el botón de emergencia (Animate.css heartBeat). */
 fun Modifier.heartBeat(): Modifier = composed {
+    if (reduceMotion()) return@composed this
     val t = rememberInfiniteTransition(label = "beat")
     val v by t.animateFloat(
         0f, 1f,
@@ -163,6 +205,7 @@ fun Modifier.heartBeat(): Modifier = composed {
 /** Halo que se expande y desvanece detrás de un elemento (pulso). */
 @Composable
 fun PulseHalo(color: Color, size: Dp, modifier: Modifier = Modifier) {
+    if (reduceMotion()) return
     val t = rememberInfiniteTransition(label = "halo")
     val p by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1600, easing = LinearOutSlowInEasing)), label = "p")
     Box(

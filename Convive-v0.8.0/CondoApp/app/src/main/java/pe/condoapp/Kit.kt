@@ -1,6 +1,13 @@
 package pe.condoapp
 
 import androidx.compose.foundation.Image
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -302,30 +309,54 @@ fun FloatingNav(content: @Composable RowScope.() -> Unit) {
 
 @Composable
 fun NavPill(icon: ImageVector, label: String, selected: Boolean, dot: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    // Se usa decenas de veces al día: animación corta (≤ 220 ms) y sin rebote.
+    val bg by animateColorAsState(
+        if (selected) Palette.Navy else Color.Transparent,
+        tween(Motion.QUICK_MS, easing = Motion.EaseOut), label = "pillBg"
+    )
+    val tint by animateColorAsState(
+        if (selected) Color.White else Palette.Muted,
+        tween(Motion.QUICK_MS, easing = Motion.EaseOut), label = "pillTint"
+    )
     Row(
         modifier = modifier
+            .pressScale(0.96f)
             .height(50.dp)
             .clip(CircleShape)
-            .background(if (selected) Palette.Navy else Color.Transparent)
+            .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+        horizontalArrangement = Arrangement.Center
     ) {
         Box {
-            Icon(icon, contentDescription = label, tint = if (selected) Color.White else Palette.Muted)
+            Icon(icon, contentDescription = label, tint = tint)
             if (dot) {
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
+                        .popIn()
                         .size(9.dp)
                         .clip(CircleShape)
                         .background(Palette.Red)
                 )
             }
         }
-        if (selected) {
-            Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        AnimatedVisibility(
+            visible = selected,
+            enter = fadeIn(tween(160, delayMillis = 60, easing = Motion.EaseOut)) +
+                expandHorizontally(tween(Motion.QUICK_MS + 20, easing = Motion.EaseInOut), expandFrom = Alignment.Start),
+            exit = fadeOut(tween(90)) +
+                shrinkHorizontally(tween(Motion.QUICK_MS, easing = Motion.EaseInOut), shrinkTowards = Alignment.Start)
+        ) {
+            Text(
+                label,
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 6.dp)
+            )
         }
     }
 }

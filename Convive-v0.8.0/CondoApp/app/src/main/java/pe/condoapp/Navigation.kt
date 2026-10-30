@@ -1,5 +1,8 @@
 package pe.condoapp
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -61,6 +64,21 @@ fun tabsFor(user: AppUser): List<Tab> {
         }
     }
 }
+
+/** Pantalla visible dentro del contenedor principal (define el sentido de la transición). */
+private sealed interface Screen {
+    data object Notif : Screen
+    data object NewClient : Screen
+    data class ClientDetail(val id: String) : Screen
+    data class Account(val id: String) : Screen
+    data object Me : Screen
+    data class Profile(val id: String) : Screen
+    data class TabScreen(val tab: Tab) : Screen
+}
+
+/** 0 = pestaña de la barra inferior; 1 = pantalla que se apila encima (detalle). */
+private fun Screen.depth(tabs: List<Tab>): Int =
+    if (this is Screen.TabScreen && tab in tabs) 0 else 1
 
 @Composable
 fun AppRoot() {
@@ -141,48 +159,83 @@ private fun MainScaffold(user: AppUser) {
         }
         Box(Modifier.weight(1f)) {
             val openClient = UiState.openClientId
-            // Cada pantalla nueva entra con un desvanecido suave hacia arriba
-            val screenKey = when {
-                user.role == Role.SUPER_ADMIN && UiState.showNotifications -> "notif"
-                user.role == Role.SUPER_ADMIN && UiState.newClient -> "new"
-                user.role == Role.SUPER_ADMIN && openClient != null -> "client:$openClient"
-                user.role == Role.SUPER_ADMIN && UiState.accountId != null -> "account:${UiState.accountId}"
-                UiState.myProfile && user.role == Role.ADMIN -> "me"
-                profileId != null && user.role != Role.TENANT -> "profile:$profileId"
-                else -> "tab:${current.name}"
+            val accountId = UiState.accountId
+            val screen: Screen = when {
+                user.role == Role.SUPER_ADMIN && UiState.showNotifications -> Screen.Notif
+                user.role == Role.SUPER_ADMIN && UiState.newClient -> Screen.NewClient
+                user.role == Role.SUPER_ADMIN && openClient != null -> Screen.ClientDetail(openClient)
+                user.role == Role.SUPER_ADMIN && accountId != null -> Screen.Account(accountId)
+                UiState.myProfile && user.role == Role.ADMIN -> Screen.Me
+                profileId != null && user.role != Role.TENANT -> Screen.Profile(profileId)
+                else -> Screen.TabScreen(current)
             }
-            key(screenKey) { Box(Modifier.fillMaxSize().enter(0, 14.dp)) {
-            if (user.role == Role.SUPER_ADMIN && UiState.showNotifications) {
-                SuperNotifications { UiState.showNotifications = false }
-            } else if (user.role == Role.SUPER_ADMIN && UiState.newClient) {
-                SuperNewClient {
+            val reduce = reduceMotion()
+            // Transiciones con sentido espacial:
+            // · entre pestañas la pantalla se desliza hacia el lado de la pestaña tocada;
+            // · un detalle entra desde la derecha y al regresar sale por donde vino.
+            AnimatedContent(
+                targetState = screen,
+                transitionSpec = {
+                    val from = initialState.depth(tabs)
+                    val to = targetState.depth(tabs)
+                    (when {
+                        reduce -> fadeIn(tween(150)) togetherWith fadeOut(tween(100))
+                        from == 0 && to == 0 -> {
+                            val a = tabs.indexOf((initialState as Screen.TabScreen).tab)
+                            val b = tabs.indexOf((targetState as Screen.TabScreen).tab)
+                            val dir = if (b >= a) 1 else -1
+                            (slideInHorizontally(tween(Motion.QUICK_MS + 40, easing = Motion.EaseOut)) { w -> dir * w / 14 } +
+                                fadeIn(tween(Motion.QUICK_MS, easing = Motion.EaseOut))) togetherWith
+                                (slideOutHorizontally(tween(Motion.QUICK_MS, easing = Motion.EaseOut)) { w -> -dir * w / 14 } +
+                                    fadeOut(tween(120)))
+                        }
+                        to > from -> // abrir detalle
+                            (slideInHorizontally(tween(Motion.SCREEN_MS, easing = Motion.EaseDrawer)) { w -> w / 4 } +
+                                fadeIn(tween(Motion.QUICK_MS, easing = Motion.EaseOut))) togetherWith
+                                (slideOutHorizontally(tween(Motion.SCREEN_MS, easing = Motion.EaseDrawer)) { w -> -w / 10 } +
+                                    fadeOut(tween(150)))
+                        to < from -> // regresar
+                            (slideInHorizontally(tween(Motion.SCREEN_MS, easing = Motion.EaseDrawer)) { w -> -w / 10 } +
+                                fadeIn(tween(Motion.QUICK_MS, easing = Motion.EaseOut))) togetherWith
+                                (slideOutHorizontally(tween(Motion.SCREEN_MS - 60, easing = Motion.EaseDrawer)) { w -> w / 4 } +
+                                    fadeOut(tween(150)))
+                        else -> // de un detalle a otro
+                            (fadeIn(tween(Motion.QUICK_MS, easing = Motion.EaseOut)) +
+                                slideInVertically(tween(Motion.QUICK_MS + 40, easing = Motion.EaseOut)) { h -> h / 40 }) togetherWith
+                                fadeOut(tween(120))
+                    }) using SizeTransform(clip = false)
+                },
+                label = "screen"
+            ) { s ->
+            Box(Modifier.fillMaxSize()) {
+            when (s) {
+                Screen.Notif -> SuperNotifications { UiState.showNotifications = false }
+                Screen.NewClient -> SuperNewClient {
                     UiState.newClient = false
                     tab = Tab.CLIENTES
                 }
-            } else if (user.role == Role.SUPER_ADMIN && openClient != null) {
-                SuperClientDetail(openClient) { UiState.openClientId = null }
-            } else if (user.role == Role.SUPER_ADMIN && UiState.accountId != null) {
-                AccountInfo(user, UiState.accountId!!) { UiState.accountId = null }
-            } else if (UiState.myProfile && user.role == Role.ADMIN) {
-                AdminMyProfile(user) { UiState.myProfile = false }
-            } else if (profileId != null && user.role != Role.TENANT) {
-                TenantProfile(user, profileId) { UiState.profileId = null }
-            } else when (current) {
-                Tab.RESUMEN -> SuperHome(user, go)
-                Tab.CLIENTES -> SuperClientes()
-                Tab.PLANES -> SuperPlanes(user)
-                Tab.MI_PERFIL -> SuperMiPerfil(user, go)
-                Tab.CUENTAS -> SuperCuentas(user, onBack = { go(Tab.MI_PERFIL) })
-                Tab.PANEL -> AdminPanel(user, go, personasHidden)
-                Tab.COBROS -> AdminCobros(user)
-                Tab.SERVICIOS -> if (user.role == Role.ADMIN) AdminServicios(user) else TenantServicios(user)
-                Tab.AVISOS -> if (user.role == Role.ADMIN) AdminAvisos(user) else TenantAvisos(user)
-                Tab.PERSONAS -> AdminPersonas(user, if (personasHidden) ({ go(Tab.PANEL) }) else null)
-                Tab.INICIO -> TenantHome(user, go)
-                Tab.MEDIDOR -> TenantMedidor(user)
-                Tab.MEDIDORES -> AdminMedidores(user)
+                is Screen.ClientDetail -> SuperClientDetail(s.id) { UiState.openClientId = null }
+                is Screen.Account -> AccountInfo(user, s.id) { UiState.accountId = null }
+                Screen.Me -> AdminMyProfile(user) { UiState.myProfile = false }
+                is Screen.Profile -> TenantProfile(user, s.id) { UiState.profileId = null }
+                is Screen.TabScreen -> when (s.tab) {
+                    Tab.RESUMEN -> SuperHome(user, go)
+                    Tab.CLIENTES -> SuperClientes()
+                    Tab.PLANES -> SuperPlanes(user)
+                    Tab.MI_PERFIL -> SuperMiPerfil(user, go)
+                    Tab.CUENTAS -> SuperCuentas(user, onBack = { go(Tab.MI_PERFIL) })
+                    Tab.PANEL -> AdminPanel(user, go, personasHidden)
+                    Tab.COBROS -> AdminCobros(user)
+                    Tab.SERVICIOS -> if (user.role == Role.ADMIN) AdminServicios(user) else TenantServicios(user)
+                    Tab.AVISOS -> if (user.role == Role.ADMIN) AdminAvisos(user) else TenantAvisos(user)
+                    Tab.PERSONAS -> AdminPersonas(user, if (personasHidden) ({ go(Tab.PANEL) }) else null)
+                    Tab.INICIO -> TenantHome(user, go)
+                    Tab.MEDIDOR -> TenantMedidor(user)
+                    Tab.MEDIDORES -> AdminMedidores(user)
+                }
             }
-            } }
+            }
+            }
         }
         UiState.deleteRequest?.let { req ->
             key(req) {
@@ -221,14 +274,22 @@ private fun MainScaffold(user: AppUser) {
             Box(Modifier.navigationBarsPadding()) {
                 FloatingNav {
                     tabs.forEach { t ->
-                        val sel = current == t && profileId == null && !UiState.myProfile
-                        NavPill(
-                            icon = t.icon,
-                            label = t.label,
-                            selected = sel,
-                            dot = t == Tab.PANEL && pendingAlerts > 0,
-                            modifier = Modifier.weight(if (sel) 2.2f else 1f)
-                        ) { go(t) }
+                        key(t) {
+                            val sel = current == t && profileId == null && !UiState.myProfile
+                            // La pastilla activa se ensancha con suavidad (se mueve en pantalla: ease-in-out)
+                            val w by animateFloatAsState(
+                                if (sel) 2.2f else 1f,
+                                tween(Motion.QUICK_MS + 20, easing = Motion.EaseInOut),
+                                label = "pillWeight"
+                            )
+                            NavPill(
+                                icon = t.icon,
+                                label = t.label,
+                                selected = sel,
+                                dot = t == Tab.PANEL && pendingAlerts > 0,
+                                modifier = Modifier.weight(w)
+                            ) { go(t) }
+                        }
                     }
                 }
             }
@@ -270,6 +331,7 @@ private fun TopBar(user: AppUser, client: Client?, bellDot: Boolean, onBell: (()
         if (onBell != null) {
             Box(
                 Modifier
+                    .pressScale(0.95f)
                     .size(46.dp)
                     .clip(CircleShape)
                     .background(Palette.Surface)
@@ -277,11 +339,12 @@ private fun TopBar(user: AppUser, client: Client?, bellDot: Boolean, onBell: (()
                     .clickable(onClick = onBell),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Notifications, contentDescription = "Avisos", tint = Palette.Ink)
+                Icon(Icons.Rounded.Notifications, contentDescription = "Avisos", tint = Palette.Ink, modifier = Modifier.ring(bellDot))
                 if (bellDot) {
                     Box(
                         Modifier
                             .align(Alignment.TopEnd)
+                            .popIn()
                             .padding(top = 11.dp, end = 12.dp)
                             .size(9.dp)
                             .clip(CircleShape)
@@ -291,7 +354,7 @@ private fun TopBar(user: AppUser, client: Client?, bellDot: Boolean, onBell: (()
             }
         }
         // El administrador abre "Mi perfil"; los demás, el menú de la cuenta.
-        Box(Modifier.clip(CircleShape).clickable {
+        Box(Modifier.pressScale(0.95f).clip(CircleShape).clickable {
             if (user.role == Role.ADMIN) UiState.myProfile = true else accountOpen = true
         }) {
             Avatar(user.name, size = 46.dp, bg = Palette.Navy, fg = Color.White)

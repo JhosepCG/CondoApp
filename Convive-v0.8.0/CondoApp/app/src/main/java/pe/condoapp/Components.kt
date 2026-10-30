@@ -1,6 +1,9 @@
 package pe.condoapp
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -122,7 +125,7 @@ fun AppCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(20.dp)
-    var m = modifier
+    var m = (if (onClick != null) modifier.pressScale(0.98f) else modifier)
         .fillMaxWidth()
         .clip(shape)
         .background(color)
@@ -283,21 +286,28 @@ fun ChoiceChips(
     ) {
         options.forEach { o ->
             val sel = o == selected
+            // El color cambia con un fundido corto (ease) en lugar de saltar.
+            val chipSpec = tween<Color>(Motion.QUICK_MS, easing = FastOutSlowInEasing)
+            val bg by animateColorAsState(if (sel) Palette.Navy else Palette.Surface, chipSpec, label = "chipBg")
+            val bd by animateColorAsState(if (sel) Palette.Navy else Palette.Line, chipSpec, label = "chipBd")
+            val fg by animateColorAsState(if (sel) Color.White else Palette.Ink, chipSpec, label = "chipFg")
+            val ic by animateColorAsState(if (sel) Color.White else Palette.Muted, chipSpec, label = "chipIc")
             Row(
                 modifier = Modifier
+                    .pressScale()
                     .clip(CircleShape)
-                    .background(if (sel) Palette.Navy else Palette.Surface)
-                    .border(1.dp, if (sel) Palette.Navy else Palette.Line, CircleShape)
+                    .background(bg)
+                    .border(1.dp, bd, CircleShape)
                     .clickable { onSelect(o) }
                     .padding(horizontal = 14.dp, vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                val ic = icons[o]
-                if (ic != null) {
-                    Icon(ic, contentDescription = null, tint = if (sel) Color.White else Palette.Muted, modifier = Modifier.size(16.dp))
+                val icn = icons[o]
+                if (icn != null) {
+                    Icon(icn, contentDescription = null, tint = ic, modifier = Modifier.size(16.dp))
                 }
-                Text(o, color = if (sel) Color.White else Palette.Ink, style = MaterialTheme.typography.labelLarge)
+                Text(o, color = fg, style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -368,7 +378,7 @@ fun PrimaryButton(
     Button(
         onClick = onClick,
         enabled = enabled,
-        modifier = modifier.heightIn(min = 52.dp),
+        modifier = (if (enabled) modifier.pressScale() else modifier).heightIn(min = 52.dp),
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = color,
@@ -394,7 +404,7 @@ fun SecondaryButton(
 ) {
     OutlinedButton(
         onClick = onClick,
-        modifier = modifier.heightIn(min = 52.dp),
+        modifier = modifier.pressScale().heightIn(min = 52.dp),
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, Palette.Line),
         colors = ButtonDefaults.outlinedButtonColors(containerColor = Palette.Surface, contentColor = Palette.Ink)

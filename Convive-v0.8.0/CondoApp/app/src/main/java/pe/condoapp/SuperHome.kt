@@ -70,7 +70,7 @@ fun SuperHeader(user: AppUser) {
         // Notificaciones (pedidos de ayuda de los administradores)
         Box(
             Modifier
-                .pressScale(0.92f)
+                .pressScale(0.95f)
                 .size(44.dp)
                 .clip(CircleShape)
                 .background(Palette.Surface)
@@ -99,7 +99,7 @@ fun SuperHeader(user: AppUser) {
         // Salir: mismo círculo blanco que la campana
         Box(
             Modifier
-                .pressScale(0.92f)
+                .pressScale(0.95f)
                 .size(44.dp)
                 .clip(CircleShape)
                 .background(Palette.Surface)
@@ -144,7 +144,7 @@ fun SuperNavBar(tabs: List<Tab>, current: Tab?, onSelect: (Tab) -> Unit, onAdd: 
         Box(
             Modifier
                 .align(Alignment.TopCenter)
-                .pressScale(0.9f)
+                .pressScale(0.95f)
                 .size(65.dp)
                 .clip(CircleShape)
                 .background(Palette.GreenSoft)
@@ -169,7 +169,11 @@ fun SuperNavBar(tabs: List<Tab>, current: Tab?, onSelect: (Tab) -> Unit, onAdd: 
 @Composable
 private fun SuperNavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val color = if (selected) Palette.Teal else Palette.Muted.copy(alpha = 0.5f)
-    val k by androidx.compose.animation.core.animateFloatAsState(if (selected) 1.12f else 1f, Motion.Bouncy, label = "tab")
+    val k by androidx.compose.animation.core.animateFloatAsState(
+        if (selected) 1.08f else 1f,
+        androidx.compose.animation.core.tween(Motion.QUICK_MS, easing = Motion.EaseOut),
+        label = "tab"
+    )
     Column(
         modifier
             .fillMaxHeight()
