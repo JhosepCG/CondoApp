@@ -17,7 +17,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
@@ -37,7 +37,7 @@ jobs:
           name: Convive-apk
           path: CondoApp-v0.2.0/CondoApp/Convive.apk
 
-      - name: Publicar APK en Releases
+      - name: Publicar APK en Releases (descarga directa desde el celular)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_number }}
