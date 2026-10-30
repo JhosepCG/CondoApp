@@ -46,9 +46,17 @@ private val CardLine = Color(0xFFF2F2F2)
 
 /** Encabezado del Super Admin: foto, saludo, campana de notificaciones y botón para salir. */
 @Composable
-fun SuperHeader(user: AppUser) {
+fun SuperHeader(
+    user: AppUser,
+    subtitle: String = "Super Admin",
+    unread: Int = Store.unreadSupport(),
+    onBell: () -> Unit = {
+        UiState.openClientId = null
+        UiState.newClient = false
+        UiState.showNotifications = true
+    }
+) {
     var confirmLogout by remember { mutableStateOf(false) }
-    val unread = Store.unreadSupport()
     Row(
         Modifier
             .fillMaxWidth()
@@ -65,7 +73,7 @@ fun SuperHeader(user: AppUser) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text("Super Admin", style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = Palette.Muted)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp), color = Palette.Muted)
         }
         // Notificaciones (pedidos de ayuda de los administradores)
         Box(
@@ -74,11 +82,7 @@ fun SuperHeader(user: AppUser) {
                 .size(44.dp)
                 .clip(CircleShape)
                 .background(Palette.Surface)
-                .clickable {
-                    UiState.openClientId = null
-                    UiState.newClient = false
-                    UiState.showNotifications = true
-                },
+                .clickable(onClick = onBell),
             contentAlignment = Alignment.Center
         ) {
             Icon(Ic.Bell, contentDescription = "Notificaciones", tint = Palette.Muted, modifier = Modifier.size(22.dp).ring(unread > 0))
@@ -123,7 +127,19 @@ fun SuperHeader(user: AppUser) {
 
 /** Barra inferior del Super Admin con el botón + al centro (nuevo cliente). */
 @Composable
-fun SuperNavBar(tabs: List<Tab>, current: Tab?, onSelect: (Tab) -> Unit, onAdd: () -> Unit) {
+fun SuperNavBar(
+    tabs: List<Tab>,
+    current: Tab?,
+    onSelect: (Tab) -> Unit,
+    onAdd: () -> Unit,
+    centerIcon: ImageVector? = null,
+    centerLabel: String = "Nuevo cliente",
+    coachKey: String = "sa_fab",
+    coachText: String = "Toca + para crear un cliente nuevo con su administrador.",
+    labelOf: (Tab) -> String = { it.label },
+    iconOf: (Tab, Boolean) -> ImageVector = ::superTabIcon,
+    dotOn: (Tab) -> Boolean = { false }
+) {
     val half = (tabs.size + 1) / 2
     Box(Modifier.fillMaxWidth()) {
         Row(
@@ -136,9 +152,9 @@ fun SuperNavBar(tabs: List<Tab>, current: Tab?, onSelect: (Tab) -> Unit, onAdd: 
                 .height(71.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            tabs.take(half).forEach { t -> SuperNavItem(t, t == current, Modifier.weight(1f)) { onSelect(t) } }
+            tabs.take(half).forEach { t -> SuperNavItem(labelOf(t), iconOf(t, t == current), t == current, dotOn(t), Modifier.weight(1f)) { onSelect(t) } }
             Spacer(Modifier.weight(1f))
-            tabs.drop(half).forEach { t -> SuperNavItem(t, t == current, Modifier.weight(1f)) { onSelect(t) } }
+            tabs.drop(half).forEach { t -> SuperNavItem(labelOf(t), iconOf(t, t == current), t == current, dotOn(t), Modifier.weight(1f)) { onSelect(t) } }
         }
         // Botón + (nuevo cliente)
         Box(
@@ -154,20 +170,24 @@ fun SuperNavBar(tabs: List<Tab>, current: Tab?, onSelect: (Tab) -> Unit, onAdd: 
                 .clickable(onClick = onAdd),
             contentAlignment = Alignment.Center
         ) {
-            androidx.compose.foundation.Canvas(Modifier.size(15.dp)) {
-                val w = 2.dp.toPx()
-                drawLine(Color.White, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
-                drawLine(Color.White, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), w, androidx.compose.ui.graphics.StrokeCap.Round)
+            if (centerIcon != null) {
+                Icon(centerIcon, contentDescription = centerLabel, tint = Color.White, modifier = Modifier.size(26.dp))
+            } else {
+                androidx.compose.foundation.Canvas(Modifier.size(15.dp)) {
+                    val w = 2.dp.toPx()
+                    drawLine(Color.White, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), w, androidx.compose.ui.graphics.StrokeCap.Round)
+                    drawLine(Color.White, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), w, androidx.compose.ui.graphics.StrokeCap.Round)
+                }
             }
         }
         Box(Modifier.align(Alignment.TopCenter).size(65.dp)) {
-            CoachMark("sa_fab", "Toca + para crear un cliente nuevo con su administrador.")
+            CoachMark(coachKey, coachText)
         }
     }
 }
 
 @Composable
-private fun SuperNavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun SuperNavItem(label: String, icon: ImageVector, selected: Boolean, dot: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val color = if (selected) Palette.Teal else Palette.Muted.copy(alpha = 0.5f)
     val k by androidx.compose.animation.core.animateFloatAsState(
         if (selected) 1.08f else 1f,
@@ -185,10 +205,15 @@ private fun SuperNavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick:
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(superTabIcon(t, selected), contentDescription = t.label, tint = color, modifier = Modifier.size(24.dp).graphicsLayer { scaleX = k; scaleY = k })
+        Box {
+            Icon(icon, contentDescription = label, tint = color, modifier = Modifier.size(24.dp).graphicsLayer { scaleX = k; scaleY = k })
+            if (dot) {
+                Box(Modifier.align(Alignment.TopEnd).popIn().size(9.dp).clip(CircleShape).background(Palette.Red))
+            }
+        }
         Spacer(Modifier.height(4.dp))
         Text(
-            t.label,
+            label,
             color = color,
             style = MaterialTheme.typography.labelMedium.copy(
                 fontSize = 12.sp,
@@ -200,8 +225,10 @@ private fun SuperNavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick:
 }
 
 /** Íconos de la barra del Super Admin: rellenos si están activos, de línea si no (como en Figma). */
-private fun superTabIcon(t: Tab, selected: Boolean): ImageVector = when (t) {
-    Tab.RESUMEN -> if (selected) Ic.HomeFill else Ic.Home
+fun superTabIcon(t: Tab, selected: Boolean): ImageVector = when (t) {
+    Tab.RESUMEN, Tab.PANEL -> if (selected) Ic.HomeFill else Ic.Home
+    Tab.COBROS -> if (selected) Ic.CardFill else Ic.Card
+    Tab.SERVICIOS -> Ic.AlertOctagon
     Tab.CLIENTES -> if (selected) Ic.UsersFill else Ic.Users
     Tab.PLANES -> if (selected) Ic.CardFill else Ic.Card
     Tab.MI_PERFIL -> if (selected) Ic.UserFill else Ic.User

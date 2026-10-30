@@ -48,7 +48,7 @@ object Store {
 
     private var prefs: SharedPreferences? = null
     private var seq = 100
-    private const val DATA_VERSION = 10
+    private const val DATA_VERSION = 11
 
     fun init(context: Context) {
         if (prefs != null) return
@@ -88,13 +88,81 @@ object Store {
         Feature.entries.filter { it != Feature.VISITAS && (it != Feature.MEDIDORES || t == Template.CASA_DEPAS) }.toSet()
 
     /** Busca inquilinos por nombre, usuario o departamento. clientId = null busca en todos. */
+    /**
+     * Búsqueda inteligente de inquilinos: ignora tildes, mayúsculas y símbolos, entiende
+     * pisos escritos de varias formas («2° piso», «2do piso», «segundo piso», «piso 2»),
+     * busca por nombre, apellido, depa, usuario, DNI o celular y tolera un error de tipeo.
+     * Cada palabra escrita debe coincidir con algo; los resultados van del más al menos parecido.
+     */
     fun searchTenants(query: String, clientId: String?): List<AppUser> {
-        val q = query.trim().lowercase()
-        if (q.isEmpty()) return emptyList()
-        return users.filter { u ->
-            u.role == Role.TENANT && (clientId == null || u.clientId == clientId) &&
-                (u.name.lowercase().contains(q) || u.username.contains(q) || (u.unit?.lowercase()?.contains(q) == true))
+        val tokens = searchNorm(query).split(" ").filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return emptyList()
+        return users.asSequence()
+            .filter { it.role == Role.TENANT && (clientId == null || it.clientId == clientId) }
+            .mapNotNull { u ->
+                val name = searchNorm(u.name).split(" ")
+                val unit = searchNorm(u.unit ?: "").split(" ").filter { it.isNotBlank() }
+                val ids = listOfNotNull(u.username, u.dni, u.phone, contracts.firstOrNull { it.userId == u.id }?.dni)
+                    .map { searchNorm(it) }
+                var score = 0
+                for (t in tokens) {
+                    val s = tokenScore(t, name, unit, ids)
+                    if (s == 0) return@mapNotNull null
+                    score += s
+                }
+                u to score
+            }
+            .sortedWith(compareByDescending<Pair<AppUser, Int>> { it.second }.thenBy { it.first.unit ?: "" })
+            .map { it.first }
+            .toList()
+    }
+
+    private fun tokenScore(t: String, name: List<String>, unit: List<String>, ids: List<String>): Int {
+        val isNum = t.all { it.isDigit() }
+        return when {
+            unit.any { it == t } -> 6
+            name.any { it == t } -> 6
+            name.any { it.startsWith(t) } -> 5
+            unit.any { it.startsWith(t) } -> 4
+            ids.any { it.startsWith(t) } -> 4
+            isNum && t.length >= 3 && ids.any { it.contains(t) } -> 3
+            !isNum && t.length >= 3 && name.any { it.contains(t) } -> 2
+            !isNum && t.length >= 4 && name.any { w -> typoClose(t, w) } -> 1
+            else -> 0
         }
+    }
+
+    /** true si [t] se parece al inicio de [w] con una letra de diferencia (ej. «rossa» → «rosa»). */
+    private fun typoClose(t: String, w: String): Boolean =
+        (maxOf(1, t.length - 1)..minOf(w.length, t.length + 1)).any { n -> levenshteinPrefix(t, w.take(n)) <= 1 }
+
+    private fun levenshteinPrefix(a: String, b: String): Int {
+        val d = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in 0..a.length) d[i][0] = i
+        for (j in 0..b.length) d[0][j] = j
+        for (i in 1..a.length) for (j in 1..b.length) {
+            d[i][j] = minOf(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + if (a[i - 1] == b[j - 1]) 0 else 1)
+        }
+        return d[a.length][b.length]
+    }
+
+    private val ordinalWords = mapOf(
+        "primer" to "1", "primero" to "1", "segundo" to "2", "tercer" to "3", "tercero" to "3",
+        "cuarto" to "4", "quinto" to "5", "sexto" to "6", "septimo" to "7", "octavo" to "8",
+        "noveno" to "9", "decimo" to "10"
+    )
+
+    /** Texto comparable: minúsculas, sin tildes ni símbolos y con los pisos como número. */
+    fun searchNorm(s: String): String {
+        var t = java.text.Normalizer.normalize(s.lowercase(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "")
+            .replace(Regex("[°º]"), " ")
+            .replace(Regex("[^a-z0-9ñ ]"), " ")
+        // 2do, 3er, 1ro, 4to… → 2, 3, 1, 4
+        t = t.replace(Regex("\\b(\\d+)\\s*(er|ero|ro|do|to|vo|no|mo|avo)\\b"), "$1")
+        // Depa / dpto / departamento → depa
+        t = t.replace(Regex("\\b(dpto|depto|dep|departamento|depas?)\\b"), "depa")
+        return t.split(Regex("\\s+")).filter { it.isNotBlank() }.joinToString(" ") { ordinalWords[it] ?: it }
     }
 
     fun isOverdue(c: Charge): Boolean = !c.paid && LocalDate.now().isAfter(c.due)
@@ -795,9 +863,9 @@ object Store {
                 AppUser("u2", "Carlos Ramos", "carlos", "1234", Role.TENANT, "c1", "Dpto 301"),
                 AppUser("u3", "Lucía Vega", "lucia", "1234", Role.TENANT, "c1", "Dpto 302"),
                 AppUser("u4", "Pedro Quispe", "pedro", "1234", Role.ADMIN, "c2", null, dni = "87654321", phone = "987654321"),
-                AppUser("u5", "Marco Díaz", "marco", "1234", Role.TENANT, "c2", "Depa 2"),
-                AppUser("u6", "Rosa Huamán", "rosa", "1234", Role.TENANT, "c2", "Depa 1"),
-                AppUser("u7", "Diego Salas", "diego", "1234", Role.TENANT, "c2", "Depa 3"),
+                AppUser("u5", "Marco Díaz", "marco", "1234", Role.TENANT, "c2", "2° Piso B"),
+                AppUser("u6", "Rosa Huamán", "rosa", "1234", Role.TENANT, "c2", "2° Piso A"),
+                AppUser("u7", "Diego Salas", "diego", "1234", Role.TENANT, "c2", "3° Piso A"),
                 AppUser("u8", "Sofía Quispe", "sofia", "1234", Role.ADMIN, "c2", null, dni = "76543210", phone = "912345678"),
                 AppUser("u9", "Luis Rojas", "luis", "1234", Role.ADMIN, "c3", null, dni = "48123456", phone = "934567812"),
                 AppUser("u10", "Carmen Díaz", "carmen", "1234", Role.ADMIN, "c4", null, dni = "43215678", phone = "945612378")
@@ -807,9 +875,9 @@ object Store {
             listOf(
                 UnitInfo("c1", "Dpto 301", "Carlos Ramos"),
                 UnitInfo("c1", "Dpto 302", "Carlos Ramos"),
-                UnitInfo("c2", "Depa 1", "Pedro Quispe"),
-                UnitInfo("c2", "Depa 2", "Pedro Quispe"),
-                UnitInfo("c2", "Depa 3", "Pedro Quispe")
+                UnitInfo("c2", "2° Piso A", "Pedro Quispe"),
+                UnitInfo("c2", "2° Piso B", "Pedro Quispe"),
+                UnitInfo("c2", "3° Piso A", "Pedro Quispe")
             )
         )
         val today = LocalDate.now()
@@ -817,9 +885,9 @@ object Store {
             listOf(
                 Charge("ch1", "c1", "Dpto 301", "Cuota de mantenimiento", 180.0, today.plusDays(5)),
                 Charge("ch2", "c1", "Dpto 302", "Cuota de mantenimiento", 180.0, today.minusDays(6)),
-                Charge("ch3", "c2", "Depa 2", "Renta mensual", 650.0, today.plusDays(3)),
-                Charge("ch4", "c2", "Depa 1", "Renta mensual", 600.0, today.minusDays(2), paid = true),
-                Charge("ch5", "c2", "Depa 3", "Renta mensual", 700.0, today.minusDays(4)),
+                Charge("ch3", "c2", "2° Piso B", "Renta mensual", 650.0, today.plusDays(3)),
+                Charge("ch4", "c2", "2° Piso A", "Renta mensual", 600.0, today.minusDays(2), paid = true),
+                Charge("ch5", "c2", "3° Piso A", "Renta mensual", 700.0, today.minusDays(4)),
                 Charge("ch6", "c1", "Dpto 301", "Cuota de mantenimiento", 180.0, today.minusDays(30), paid = true),
                 Charge("ch7", "c1", "Dpto 302", "Cuota de mantenimiento", 180.0, today.minusDays(36), paid = true)
             )
@@ -828,7 +896,7 @@ object Store {
             Incident("i1", "c1", "u3", "Lucía Vega", "Dpto 302", "Internet", "Sin señal desde la mañana.", createdAt = now())
         )
         incidents.add(
-            Incident("i2", "c2", "u7", "Diego Salas", "Depa 3", "Agua", "Poca presión en la ducha.", createdAt = now())
+            Incident("i2", "c2", "u7", "Diego Salas", "3° Piso A", "Agua", "Poca presión en la ducha.", createdAt = now())
         )
         notices.addAll(
             listOf(

@@ -1,5 +1,6 @@
 package pe.condoapp
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -37,24 +38,23 @@ enum class Tab(val label: String, val icon: ImageVector) {
     MEDIDORES("Medidores", Ic.Bolt)
 }
 
-/** Pestañas de la barra inferior (máximo 5). */
+/** Pestañas de la app según el rol. */
 fun tabsFor(user: AppUser): List<Tab> {
     val c = Store.clientOf(user)
     fun on(f: Feature): Boolean = Store.featureOn(c, f)
     return when (user.role) {
         // Super Admin: Home, Clientes, [+], Planes, Mi perfil. "Cuentas" se abre desde Mi perfil.
         Role.SUPER_ADMIN -> listOf(Tab.RESUMEN, Tab.CLIENTES, Tab.PLANES, Tab.MI_PERFIL)
-        Role.ADMIN -> {
-            val list = buildList {
-                add(Tab.PANEL)
-                if (on(Feature.COBROS)) add(Tab.COBROS)
-                if (on(Feature.MEDIDORES)) add(Tab.MEDIDORES)
-                if (on(Feature.INCIDENCIAS)) add(Tab.SERVICIOS)
-                if (on(Feature.AVISOS)) add(Tab.AVISOS)
-                add(Tab.PERSONAS)
-            }
-            // Con más de 5 pestañas, "Personas" se abre desde el Panel.
-            if (list.size > 5) list - Tab.PERSONAS else list
+        // Administrador: Home, Pagos, [Avisos al centro], Reportes, Mi perfil.
+        // Medidores y Mis inquilinos se abren desde los accesos del Home.
+        Role.ADMIN -> buildList {
+            add(Tab.PANEL)
+            if (on(Feature.COBROS)) add(Tab.COBROS)
+            if (on(Feature.AVISOS)) add(Tab.AVISOS)
+            if (on(Feature.INCIDENCIAS)) add(Tab.SERVICIOS)
+            add(Tab.MI_PERFIL)
+            if (on(Feature.MEDIDORES)) add(Tab.MEDIDORES)
+            add(Tab.PERSONAS)
         }
         Role.TENANT -> buildList {
             add(Tab.INICIO)
@@ -94,16 +94,17 @@ fun AppRoot() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun MainScaffold(user: AppUser) {
+    val imeVisible = WindowInsets.isImeVisible
     val tabs = tabsFor(user)
     var tab by remember(user.id) { mutableStateOf(tabs.first()) }
     LaunchedEffect(user.id) {
         UiState.profileId = null
         UiState.myProfile = false
     }
-    val personasHidden = user.role == Role.ADMIN && Tab.PERSONAS !in tabs
-    val current = if (tab in tabs || (tab == Tab.PERSONAS && personasHidden) || (tab == Tab.CUENTAS && user.role == Role.SUPER_ADMIN)) tab else tabs.first()
+    val current = if (tab in tabs || (tab == Tab.CUENTAS && user.role == Role.SUPER_ADMIN)) tab else tabs.first()
     val go: (Tab) -> Unit = {
         UiState.profileId = null
         UiState.accountId = null
@@ -138,14 +139,25 @@ private fun MainScaffold(user: AppUser) {
         Modifier
             .fillMaxSize()
             .background(Palette.Bg)
-            .statusBarsPadding()
             .imePadding()
     ) {
         // El Super Admin tiene su propio encabezado (avatar, saludo y salir).
+        // Home del administrador: el encabezado con degradado va dentro de la pantalla.
+        val adminHome = user.role == Role.ADMIN && current == Tab.PANEL && profileId == null && !UiState.myProfile
         if (user.role == Role.SUPER_ADMIN) {
-            // En el detalle del cliente va la barra "Regresar" en lugar del saludo.
-            SuperHeader(user)
-        } else {
+            Box(Modifier.statusBarsPadding()) { SuperHeader(user) }
+        } else if (user.role == Role.ADMIN) {
+            if (!adminHome) {
+                Box(Modifier.statusBarsPadding()) {
+                    SuperHeader(
+                        user,
+                        subtitle = "Administrador",
+                        unread = pendingAlerts,
+                        onBell = { go(Tab.PANEL) }
+                    )
+                }
+            }
+        } else Box(Modifier.statusBarsPadding()) {
             TopBar(
                 user = user,
                 client = client,
@@ -156,6 +168,10 @@ private fun MainScaffold(user: AppUser) {
                     Role.SUPER_ADMIN -> null
                 }
             )
+        }
+        // Atrás en una sección del administrador vuelve al Home.
+        BackHandler(enabled = user.role == Role.ADMIN && current != Tab.PANEL && profileId == null && !UiState.myProfile) {
+            go(Tab.PANEL)
         }
         Box(Modifier.weight(1f)) {
             val openClient = UiState.openClientId
@@ -222,13 +238,13 @@ private fun MainScaffold(user: AppUser) {
                     Tab.RESUMEN -> SuperHome(user, go)
                     Tab.CLIENTES -> SuperClientes()
                     Tab.PLANES -> SuperPlanes(user)
-                    Tab.MI_PERFIL -> SuperMiPerfil(user, go)
+                    Tab.MI_PERFIL -> if (user.role == Role.ADMIN) AdminMyProfile(user) { go(Tab.PANEL) } else SuperMiPerfil(user, go)
                     Tab.CUENTAS -> SuperCuentas(user, onBack = { go(Tab.MI_PERFIL) })
-                    Tab.PANEL -> AdminPanel(user, go, personasHidden)
+                    Tab.PANEL -> AdminHome(user, go)
                     Tab.COBROS -> AdminCobros(user)
                     Tab.SERVICIOS -> if (user.role == Role.ADMIN) AdminServicios(user) else TenantServicios(user)
                     Tab.AVISOS -> if (user.role == Role.ADMIN) AdminAvisos(user) else TenantAvisos(user)
-                    Tab.PERSONAS -> AdminPersonas(user, if (personasHidden) ({ go(Tab.PANEL) }) else null)
+                    Tab.PERSONAS -> AdminPersonas(user) { go(Tab.PANEL) }
                     Tab.INICIO -> TenantHome(user, go)
                     Tab.MEDIDOR -> TenantMedidor(user)
                     Tab.MEDIDORES -> AdminMedidores(user)
@@ -250,7 +266,10 @@ private fun MainScaffold(user: AppUser) {
                 )
             }
         }
-        if (user.role == Role.SUPER_ADMIN) {
+        // Con el teclado abierto se oculta la barra inferior (más espacio para los resultados).
+        if (imeVisible) {
+            // nada
+        } else if (user.role == Role.SUPER_ADMIN) {
             SuperNavBar(
                 tabs = tabs,
                 current = when {
@@ -269,6 +288,33 @@ private fun MainScaffold(user: AppUser) {
                     UiState.profileId = null
                     UiState.newClient = true
                 }
+            )
+        } else if (user.role == Role.ADMIN) {
+            val barTabs = tabs.filter { it in listOf(Tab.PANEL, Tab.COBROS, Tab.SERVICIOS, Tab.MI_PERFIL) }
+            val hasAvisos = Tab.AVISOS in tabs
+            SuperNavBar(
+                tabs = barTabs,
+                current = when {
+                    UiState.myProfile -> Tab.MI_PERFIL
+                    profileId != null -> null
+                    current == Tab.MEDIDORES || current == Tab.PERSONAS -> Tab.PANEL
+                    else -> current
+                },
+                onSelect = go,
+                onAdd = { if (hasAvisos) go(Tab.AVISOS) },
+                centerIcon = Ic.Megaphone,
+                centerLabel = "Avisos",
+                coachKey = "ad_avisos",
+                coachText = "Toca aquí para enviar un aviso a todos tus inquilinos.",
+                labelOf = { t ->
+                    when (t) {
+                        Tab.PANEL -> "Home"
+                        Tab.COBROS -> "Pagos"
+                        Tab.SERVICIOS -> "Reportes"
+                        else -> t.label
+                    }
+                },
+                dotOn = { t -> t == Tab.PANEL && pendingAlerts > 0 }
             )
         } else {
             Box(Modifier.navigationBarsPadding()) {
