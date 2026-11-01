@@ -16,7 +16,8 @@
 
 - **RLS activado en todas las tablas** de `public`. Sin políticas para `anon`.
 - Funciones de ayuda `security definer` en el esquema `private` (no expuesto por la API).
-- Trigger `profiles_guard`: un usuario no puede cambiarse a sí mismo `role` ni `client_id`.
+- Trigger `profiles_guard`: nadie (salvo el Super Admin) se cambia su propio `role` o `unit`,
+  ni mueve una cuenta a otro `client_id`.
 - El Super Admin **no** ve contratos (regla de negocio y de privacidad).
 - `login_email()` es la única función accesible por `anon`; devuelve un email sintético
   incluso si la cuenta no existe.

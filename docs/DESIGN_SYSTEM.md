@@ -1,6 +1,12 @@
 # Design system — Convive
 
-Fuente de verdad en código: `Theme.kt` (`Palette`, tipografía, formas) y
+> ⚠️ **Desalineación detectada (2026-11-01):** el design system oficial de la marca
+> (artifact "Convive": Pino `#0B4F47`, Sol `#F5B83D`, Papel `#FAF8F4`, Manrope + Figtree,
+> párrafos ≥ 16 px) **no coincide** con lo que hay en el código (abajo: Navy/Teal, Roboto, 14 sp).
+> El rediseño del inquilino (`docs/design/tenant-redesign.md`) ya usa el oficial.
+> Pendiente: migrar `Theme.kt` a esos tokens.
+
+Fuente de verdad en código (estado actual): `Theme.kt` (`Palette`, tipografía, formas) y
 `Components.kt` / `Kit.kt` / `Motion.kt` / `ConviveIcons.kt`.
 
 ## Color
