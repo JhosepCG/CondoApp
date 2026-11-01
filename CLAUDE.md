@@ -1,14 +1,14 @@
 # CLAUDE.md — Instrucciones operativas de Convive
 
-App Android **Convive** (antes CondoApp) para condominios y casas por departamentos.
+App Android **Convive** para condominios y casas por departamentos.
 Tres roles: **Super Admin**, **Administrador** e **Inquilino**.
 
 ## Dónde está el código
 
-- **Proyecto activo:** `Convive-v0.8.0/CondoApp` (es el único que compila el CI).
-- `CondoApp/` y `Convive-v0.7.0/` son copias antiguas. **No editarlas.**
+- **Proyecto activo:** `Convive-v0.8.0/Convive` (es el único que compila el CI).
+- La carpeta antigua de la raíz (v0.2) y `Convive-v0.7.0/` son copias históricas. **No editarlas.**
   Ver `docs/DECISIONS.md` (D-001).
-- Paquete Kotlin: `pe.condoapp` → `Convive-v0.8.0/CondoApp/app/src/main/java/pe/condoapp/`.
+- Paquete Kotlin: `pe.convive` → `Convive-v0.8.0/Convive/app/src/main/java/pe/convive/`.
 - Backend (Supabase): `supabase/migrations/` en la raíz del repo.
 
 ## Stack
@@ -32,7 +32,7 @@ Tres roles: **Super Admin**, **Administrador** e **Inquilino**.
 ## Comandos
 
 ```bash
-cd Convive-v0.8.0/CondoApp
+cd Convive-v0.8.0/Convive
 gradle testDebugUnitTest   # pruebas unitarias (JVM)
 gradle assembleDebug       # APK de depuración
 ```

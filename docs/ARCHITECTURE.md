@@ -4,11 +4,11 @@
 
 ```
 MainActivity
-  └─ CondoTheme
+  └─ ConviveTheme
        └─ Navigation (por rol)  ──►  Pantallas Compose (Tenant*, Admin*, Super*)
                                          │ leen/escriben
                                          ▼
-                                     object Store  ── SharedPreferences ("condoapp", JSON)
+                                     object Store  ── SharedPreferences ("convive", JSON)
                                          │ (opcional)
                                          ▼
                                      Remote (Supabase REST + Auth)  ──►  Postgres con RLS
@@ -22,7 +22,7 @@ MainActivity
   nuevas). Se activa solo si `SUPABASE_URL` y `SUPABASE_KEY` están definidos en el build
   (`BuildConfig`). Hoy **no** reemplaza a `Store`: es la base para migrar módulo por módulo.
 
-## Archivos principales (`pe.condoapp`)
+## Archivos principales (`pe.convive`)
 
 | Archivo | Responsabilidad |
 |---|---|

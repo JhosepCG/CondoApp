@@ -4,7 +4,7 @@
 
 | Nivel | Herramienta | Dónde | Estado |
 |---|---|---|---|
-| Unitarias (JVM) | JUnit 4 | `app/src/test/java/pe/condoapp/` | ✅ Activas en CI |
+| Unitarias (JVM) | JUnit 4 | `app/src/test/java/pe/convive/` | ✅ Activas en CI |
 | UI (Compose) | `ui-test-junit4` + emulador | `app/src/androidTest/` | ⏳ Pendiente |
 | Backend (RLS) | SQL contra rama de Supabase | `supabase/tests/` | ⏳ Pendiente |
 | Manual / humo | APK de Releases | Teléfono real | Cada versión |
@@ -22,7 +22,7 @@ Cada prueba limpia las listas en `@Before`.
 ## Cómo correrlas
 
 ```bash
-cd Convive-v0.8.0/CondoApp
+cd Convive-v0.8.0/Convive
 gradle testDebugUnitTest
 ```
 

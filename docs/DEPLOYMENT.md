@@ -24,7 +24,7 @@ En GitHub: **Settings → Secrets and variables → Actions → Variables**, cre
 
 ## Supabase
 
-- Proyecto: **CondoApp** (`nbisetgrrbawczcnyvwg`, región `us-west-2`).
+- Proyecto: `nbisetgrrbawczcnyvwg` (región `us-west-2`). Pendiente: renombrarlo a **Convive** en el panel de Supabase.
 - Migraciones versionadas en `supabase/migrations/`. Se aplican en orden por nombre.
 - Después de cada migración: revisar *Advisors → Security* y *Performance*.
 - Rollback: escribir una migración inversa (no editar migraciones ya aplicadas).

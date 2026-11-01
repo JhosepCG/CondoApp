@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: Convive-v0.8.0/CondoApp
+        working-directory: Convive-v0.8.0/Convive
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +42,7 @@ jobs:
         if: always()
         with:
           name: test-report
-          path: Convive-v0.8.0/CondoApp/app/build/reports/tests/
+          path: Convive-v0.8.0/Convive/app/build/reports/tests/
           if-no-files-found: ignore
 
       - name: Compilar APK
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Convive-apk
-          path: Convive-v0.8.0/CondoApp/Convive.apk
+          path: Convive-v0.8.0/Convive/Convive.apk
 
       - name: Publicar APK en Releases (descarga directa desde el celular)
         if: github.ref == 'refs/heads/main'
@@ -71,5 +71,5 @@ jobs:
         with:
           tag_name: apk-${{ github.run_number }}
           name: Convive · compilación ${{ github.run_number }}
-          files: Convive-v0.8.0/CondoApp/Convive.apk
+          files: Convive-v0.8.0/Convive/Convive.apk
           make_latest: true

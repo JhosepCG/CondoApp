@@ -8,7 +8,7 @@
 | S-2 | **Alta** | Contraseña inicial fija `1234` para todas las cuentas | Forzar cambio en el primer ingreso; contraseña temporal aleatoria |
 | S-3 | **Alta** | Datos demo con cuentas conocidas en el APK publicado | Desactivar `seed()` en builds de producción |
 | S-4 | Media | Login distingue "usuario no existe" vs "contraseña incorrecta" (enumeración) | Mensaje único; con backend, `login_email` no revela existencia |
-| S-5 | Media | `android:allowBackup="true"` permite extraer SharedPreferences por backup | Excluir `condoapp.xml` con `dataExtractionRules` o cifrar |
+| S-5 | Media | `android:allowBackup="true"` permite extraer SharedPreferences por backup | Excluir `convive.xml` con `dataExtractionRules` o cifrar |
 | S-6 | Media | Sin límite de intentos de ingreso | Rate limit de Supabase Auth + bloqueo temporal en la app |
 | S-7 | Baja | APK debug firmado con clave de depuración publicado en Releases | Firma release con keystore en secretos de GitHub |
 

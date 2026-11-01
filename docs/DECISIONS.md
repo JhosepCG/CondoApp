@@ -1,11 +1,11 @@
 # Registro de decisiones
 
-## D-001 · Proyecto activo: `Convive-v0.8.0/CondoApp` (2026-11-01)
-El CI compila solo esa carpeta. `CondoApp/` y `Convive-v0.7.0/` quedan como históricos.
+## D-001 · Proyecto activo: `Convive-v0.8.0/Convive` (2026-11-01)
+El CI compila solo esa carpeta. La carpeta antigua de la raíz (v0.2) y `Convive-v0.7.0/` quedan como históricos.
 **Pendiente:** confirmar con el dueño si se eliminan (Git ya guarda el historial).
 
 ## D-002 · Backend: Supabase (2026-11-01)
-Ya existía el proyecto "CondoApp" en Supabase y el README lo planteaba.
+Ya existía un proyecto en Supabase para la app y el README lo planteaba.
 Postgres + RLS encaja con datos relacionales por condominio. Firebase descartado por ahora.
 
 ## D-003 · Cliente Supabase sin SDK (2026-11-01)
@@ -23,3 +23,10 @@ emergencias y avisos, manteniendo SharedPreferences como caché offline.
 
 ## D-006 · CI con pruebas en todas las ramas (2026-11-01)
 Las pruebas y el APK corren en cada push; la Release pública solo desde `main`.
+
+## D-007 · Nombre único: Convive (2026-11-01)
+Carpeta `Convive-v0.8.0/Convive`, paquete `pe.convive`, tema `Theme.Convive` / `ConviveTheme`.
+Los datos locales pasan de `condoapp` a `convive`; `Store.migrateLegacyPrefs` los copia una vez
+(por eso el nombre antiguo sigue en una constante). El `applicationId` sigue siendo `pe.condoapp`
+hasta que el dueño decida: cambiarlo hace que Android lo trate como otra app (no actualiza la
+instalada y se pierden los datos locales).
