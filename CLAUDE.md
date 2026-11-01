@@ -6,8 +6,7 @@ Tres roles: **Super Admin**, **Administrador** e **Inquilino**.
 ## Dónde está el código
 
 - **Proyecto activo:** `Convive-v0.8.0/Convive` (es el único que compila el CI).
-- La carpeta antigua de la raíz (v0.2) y `Convive-v0.7.0/` son copias históricas. **No editarlas.**
-  Ver `docs/DECISIONS.md` (D-001).
+- Las copias antiguas (v0.2 y v0.7.0) se eliminaron; siguen en el historial de Git (D-001).
 - Paquete Kotlin: `pe.convive` → `Convive-v0.8.0/Convive/app/src/main/java/pe/convive/`.
 - Backend (Supabase): `supabase/migrations/` en la raíz del repo.
 

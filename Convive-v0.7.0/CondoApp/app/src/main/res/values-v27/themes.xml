@@ -1,9 +1,0 @@
-<resources>
-    <style name="Theme.CondoApp" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/bg</item>
-        <item name="android:statusBarColor">@color/navy</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:navigationBarColor">@color/white</item>
-        <item name="android:windowLightNavigationBar">true</item>
-    </style>
-</resources>
