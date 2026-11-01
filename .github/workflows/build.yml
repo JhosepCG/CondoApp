@@ -2,11 +2,15 @@ name: Build APK
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -26,7 +30,25 @@ jobs:
         with:
           gradle-version: 8.10.2
 
+      - name: Pruebas unitarias
+        run: |
+          set +e
+          gradle testDebugUnitTest --no-daemon 2>&1 | tee test.log
+          st=${PIPESTATUS[0]}
+          grep -E "^e: |FAILED" test.log | head -20 | sed 's/^/::error::/'
+          exit $st
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report
+          path: Convive-v0.8.0/CondoApp/app/build/reports/tests/
+          if-no-files-found: ignore
+
       - name: Compilar APK
+        env:
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ vars.SUPABASE_KEY }}
         run: |
           set +e
           gradle assembleDebug --no-daemon 2>&1 | tee build.log
@@ -44,6 +66,7 @@ jobs:
           path: Convive-v0.8.0/CondoApp/Convive.apk
 
       - name: Publicar APK en Releases (descarga directa desde el celular)
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-${{ github.run_number }}
