@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Backend en la nube (Supabase) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Notificaciones (pedidos de ayuda de los administradores) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 

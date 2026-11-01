@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+/** Lee una configuración de las variables de entorno o de las propiedades de Gradle. */
+fun config(name: String): String =
+    (System.getenv(name) ?: (project.findProperty(name) as String?) ?: "").trim()
+
 android {
     namespace = "pe.condoapp"
     compileSdk = 35
@@ -14,6 +18,11 @@ android {
         targetSdk = 35
         versionCode = 13
         versionName = "0.9.1"
+
+        // Supabase (opcional). Sin estos valores la app funciona en modo local.
+        // Solo la clave publishable: la service_role nunca va en la app.
+        buildConfigField("String", "SUPABASE_URL", "\"${config("SUPABASE_URL")}\"")
+        buildConfigField("String", "SUPABASE_KEY", "\"${config("SUPABASE_KEY")}\"")
     }
 
     buildTypes {
@@ -30,6 +39,11 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+    testOptions {
+        // Los métodos de android.jar devuelven valores por defecto en las pruebas JVM.
+        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -46,4 +60,6 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     // Animaciones de LottieFiles (archivos .json en res/raw)
     implementation("com.airbnb.android:lottie-compose:6.6.2")
+
+    testImplementation("junit:junit:4.13.2")
 }
