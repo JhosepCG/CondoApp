@@ -653,7 +653,7 @@ private fun ReviewRow(label: String, value: String, onEdit: () -> Unit) {
     }
 }
 
-private fun money(v: Double): String = "%,.0f".format(java.util.Locale.US, v)
+private fun soles(v: Double): String = "%,.0f".format(java.util.Locale.US, v)
 
 @Composable
 internal fun OwnerReviewStep(o: OwnerSetup, nav: AuthNav) {
@@ -662,8 +662,8 @@ internal fun OwnerReviewStep(o: OwnerSetup, nav: AuthNav) {
     val rents = units.map { o.rent(it) }.filter { it > 0 }
     val prices = when {
         rents.isEmpty() -> "Sin precio"
-        rents.min() == rents.max() -> "S/ ${money(rents.min())} al mes"
-        else -> "S/ ${money(rents.min())} a S/ ${money(rents.max())} al mes"
+        rents.min() == rents.max() -> "S/ ${soles(rents.min())} al mes"
+        else -> "S/ ${soles(rents.min())} a S/ ${soles(rents.max())} al mes"
     }
     val svc = o.services.map { it.lowercase() }.let { l -> if (l.size > 1) l.dropLast(1).joinToString(", ") + " y " + l.last() else l.joinToString() }
         .replaceFirstChar { it.uppercase() }
@@ -888,7 +888,7 @@ internal fun TenantConfirmStep(version: String, ok: Store.InviteCheck.Ok, onBack
             HorizontalDivider(thickness = 1.dp, color = AK.Border)
             Spacer(Modifier.height(10.dp))
             Row {
-                InfoCell("Pago mensual", "S/ ${money(inv.rent)} al mes", Modifier.weight(1f))
+                InfoCell("Pago mensual", "S/ ${soles(inv.rent)} al mes", Modifier.weight(1f))
                 InfoCell("Pagas", "${inv.payDay} de cada mes", Modifier.weight(1f))
             }
             Spacer(Modifier.height(10.dp))

@@ -113,7 +113,7 @@ internal val CtlShape = RoundedCornerShape(12.dp)
 internal val CardShape = RoundedCornerShape(16.dp)
 internal val EMAIL_RX = Regex("[^@\\s]+@[^@\\s]+\\.[^@\\s]+")
 
-internal fun formatPhone(digits: String): String =
+internal fun authPhone(digits: String): String =
     if (digits.length == 9) "+51 ${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6)}" else digits
 
 // ---------------- Íconos de línea (mismo trazo que el Iconography del Figma) ----------------
@@ -847,5 +847,3 @@ internal fun BottomSheetOverlay(visible: Boolean, onDismiss: () -> Unit, content
     }
 }
 
-/** Fondo fino de tarjeta (resumen, confirmación). */
-internal val CardBorder = BorderStroke(1.dp, AK.Border)

@@ -478,7 +478,7 @@ private fun ForgotEnterStep(ui: AuthUi, nav: AuthNav, version: String, byEmail: 
                     err = msg
                     ui.error(msg)
                 } else {
-                    val dest = if (byEmail) value.trim().lowercase() else formatPhone(value)
+                    val dest = if (byEmail) value.trim().lowercase() else authPhone(value)
                     sendCode(dest)
                     nav.go(AuthStep.Otp(dest, u.id))
                 }
