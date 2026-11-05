@@ -187,21 +187,86 @@ object Store {
     // ---------------- Sesión ----------------
     /** Devuelve null si todo salió bien, o el mensaje de error. */
     /** Con remember = false la sesión no se guarda y se pedirá ingresar al volver a abrir la app. */
-    fun login(username: String, password: String, remember: Boolean = true): String? {
-        val key = username.trim()
-        // Se puede ingresar con el usuario o con el N° de DNI (inquilinos con contrato registrado).
-        val u = users.firstOrNull { it.username.equals(key, ignoreCase = true) }
-            ?: users.firstOrNull { it.dni == key }
-            ?: contracts.firstOrNull { it.dni == key }?.let { c -> users.firstOrNull { it.id == c.userId } }
-            ?: return "No encontramos ese usuario."
-        if (u.password != password) return "La contraseña no es correcta."
-        if (u.role != Role.SUPER_ADMIN && client(u.clientId)?.active != true) {
-            return "Este condominio está desactivado. Comunícate con soporte."
-        }
+    /** Cuenta por usuario, N° de DNI, celular o correo. */
+    fun findAccount(key: String): AppUser? {
+        val k = key.trim()
+        if (k.isEmpty()) return null
+        val digits = k.filter { it.isDigit() }.removePrefix("51").takeIf { k.all { c -> c.isDigit() || c == ' ' || c == '+' } }
+        return users.firstOrNull { it.username.equals(k, ignoreCase = true) }
+            ?: users.firstOrNull { it.dni == k }
+            ?: contracts.firstOrNull { it.dni == k }?.let { c -> users.firstOrNull { it.id == c.userId } }
+            ?: digits?.takeIf { it.length == 9 }?.let { d -> users.firstOrNull { it.phone == d } }
+            ?: users.firstOrNull { it.email != null && it.email.equals(k, ignoreCase = true) }
+    }
+
+    fun accountByEmail(email: String): AppUser? =
+        users.firstOrNull { it.email != null && it.email.equals(email.trim(), ignoreCase = true) }
+
+    fun accountByPhone(phone: String): AppUser? {
+        val d = phone.filter { it.isDigit() }.let { if (it.length == 11 && it.startsWith("51")) it.drop(2) else it }
+        return users.firstOrNull { it.phone == d }
+    }
+
+    /** Mensaje cuando el cliente de la cuenta está desactivado (o null si puede ingresar). */
+    private fun blockedReason(u: AppUser): String? =
+        if (u.role != Role.SUPER_ADMIN && client(u.clientId)?.active != true)
+            "Este condominio está desactivado. Comunícate con soporte."
+        else null
+
+    private fun startSession(u: AppUser, remember: Boolean) {
         currentUser = u
         markActivated(u.id)
         if (remember) prefs?.edit()?.putString("session", u.id)?.apply()
         else prefs?.edit()?.remove("session")?.apply()
+    }
+
+    /** Se puede ingresar con el usuario, el DNI, el celular o el correo. */
+    fun login(username: String, password: String, remember: Boolean = true): String? {
+        val u = findAccount(username) ?: return "No encontramos ese usuario."
+        if (u.password != password) return "La contraseña no es correcta."
+        blockedReason(u)?.let { return it }
+        startSession(u, remember)
+        return null
+    }
+
+    /** Google: si el correo ya tiene cuenta, entra directo. Devuelve NO_ACCOUNT si no existe. */
+    fun loginWithGoogle(email: String): String? {
+        val u = accountByEmail(email) ?: return NO_ACCOUNT
+        blockedReason(u)?.let { return it }
+        startSession(u, true)
+        return null
+    }
+
+    const val NO_ACCOUNT = "NO_ACCOUNT"
+
+    /**
+     * Cuenta nueva desde la app: por ahora crea un propietario (administrador de casa)
+     * con su casa en el plan gratuito y abre la sesión.
+     */
+    fun signUpOwner(name: String, email: String, password: String, phone: String): String? {
+        val n = name.trim()
+        val e = email.trim().lowercase()
+        val ph = phone.filter { it.isDigit() }
+        if (n.length < 3) return "Escribe tu nombre completo."
+        if (!e.matches(Regex("[^@\\s]+@[^@\\s]+\\.[^@\\s]+"))) return "Revisa tu correo."
+        if (password.length < 4) return "La contraseña debe tener al menos 4 caracteres."
+        if (ph.length != 9) return "El celular debe tener 9 números."
+        if (accountByEmail(e) != null) return "Este correo ya tiene una cuenta."
+        if (accountByPhone(ph) != null) return "Este celular ya tiene una cuenta."
+        val clientId = nextId()
+        val userId = nextId()
+        val free = plans.firstOrNull { it.cycle == Plan.GRATIS }
+        clients.add(
+            Client(
+                clientId, "Casa de " + n.substringBefore(" "), Template.CASA_DEPAS, 0.0, true,
+                allFeatures(Template.CASA_DEPAS), ownerId = userId, plan = Plan.GRATIS,
+                since = LocalDate.now(), planId = free?.id
+            )
+        )
+        val u = AppUser(userId, n, suggestUsername(n), password, Role.ADMIN, clientId, null, phone = ph, email = e)
+        users.add(u)
+        save()
+        startSession(u, true)
         return null
     }
 
@@ -248,12 +313,8 @@ object Store {
     /** Ingreso después de validar la huella. */
     fun loginWithBiometric(): String? {
         val u = users.firstOrNull { it.id == biometricUserId() } ?: return "No encontramos tu cuenta."
-        if (u.role != Role.SUPER_ADMIN && client(u.clientId)?.active != true) {
-            return "Este condominio está desactivado. Comunícate con soporte."
-        }
-        currentUser = u
-        markActivated(u.id)
-        prefs?.edit()?.putString("session", u.id)?.apply()
+        blockedReason(u)?.let { return it }
+        startSession(u, true)
         return null
     }
 
@@ -927,7 +988,7 @@ object Store {
                 AppUser("u1", "Ana Torres", "ana", "1234", Role.ADMIN, "c1", null, dni = "41234567", phone = "987111222"),
                 AppUser("u2", "Carlos Ramos", "carlos", "1234", Role.TENANT, "c1", "Dpto 301"),
                 AppUser("u3", "Lucía Vega", "lucia", "1234", Role.TENANT, "c1", "Dpto 302"),
-                AppUser("u4", "Pedro Quispe", "pedro", "1234", Role.ADMIN, "c2", null, dni = "87654321", phone = "987654321"),
+                AppUser("u4", "Pedro Quispe", "pedro", "1234", Role.ADMIN, "c2", null, dni = "87654321", phone = "987654321", email = "pedro.quispe@gmail.com"),
                 AppUser("u5", "Marco Díaz", "marco", "1234", Role.TENANT, "c2", "2° Piso B"),
                 AppUser("u6", "Rosa Huamán", "rosa", "1234", Role.TENANT, "c2", "2° Piso A"),
                 AppUser("u7", "Diego Salas", "diego", "1234", Role.TENANT, "c2", "3° Piso A"),
@@ -1040,6 +1101,7 @@ object Store {
             j.put("password", u.password); j.put("role", u.role.name)
             j.putNullable("clientId", u.clientId); j.putNullable("unit", u.unit)
             j.putNullable("dni", u.dni); j.putNullable("phone", u.phone); j.putNullable("photo", u.photoPath); j.putNullable("cover", u.coverPath)
+            j.putNullable("email", u.email)
             ua.put(j)
         }
         o.put("users", ua)
@@ -1198,8 +1260,12 @@ object Store {
                 Role.valueOf(j.getString("role")), j.str("clientId"), j.str("unit"),
                 if (j.has("dni")) j.str("dni") else null, if (j.has("phone")) j.str("phone") else null,
                 if (j.has("photo")) j.str("photo") else null,
-                if (j.has("cover")) j.str("cover") else null
+                if (j.has("cover")) j.str("cover") else null,
+                if (j.has("email")) j.str("email") else null
             )
+        }.map {
+            // Datos guardados antes de la v1.0: la cuenta de prueba de Pedro no tenía correo.
+            if (it.id == "u4" && it.username == "pedro" && it.email == null) it.copy(email = "pedro.quispe@gmail.com") else it
         }
         val un = o.getJSONArray("units").objects().map { j ->
             UnitInfo(j.getString("clientId"), j.getString("unit"), j.getString("responsible"))

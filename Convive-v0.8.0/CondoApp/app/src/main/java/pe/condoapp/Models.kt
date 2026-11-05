@@ -130,7 +130,9 @@ data class AppUser(
     /** Foto de perfil guardada en el teléfono. */
     val photoPath: String? = null,
     /** Foto de portada de "Mi perfil" (si no hay, se usa la de Convive). */
-    val coverPath: String? = null
+    val coverPath: String? = null,
+    /** Correo (cuentas creadas desde la app o con Google). */
+    val email: String? = null
 )
 
 /** Contraseña inicial de todas las cuentas nuevas. */

@@ -61,4 +61,35 @@ object Notifier {
             // Sin permiso de notificaciones: se ve igual en la campana de la app.
         }
     }
+
+    private const val CHANNEL_CODES = "codigos"
+
+    /** Código de verificación (simula el SMS o correo hasta conectar el servidor). Devuelve false si no se pudo mostrar. */
+    fun notifyCode(context: Context, code: String, destination: String): Boolean {
+        if (!canNotify(context)) return false
+        if (Build.VERSION.SDK_INT >= 26) {
+            val nm = context.getSystemService(NotificationManager::class.java)
+            if (nm?.getNotificationChannel(CHANNEL_CODES) == null) {
+                nm?.createNotificationChannel(
+                    NotificationChannel(CHANNEL_CODES, "Códigos de verificación", NotificationManager.IMPORTANCE_HIGH).apply {
+                        description = "Códigos para crear tu cuenta o recuperar tu contraseña"
+                    }
+                )
+            }
+        }
+        val n = NotificationCompat.Builder(context, CHANNEL_CODES)
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle("Tu código de Convive: $code")
+            .setContentText("Lo enviamos a $destination. Vence en 10 minutos.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setTimeoutAfter(10 * 60 * 1000L)
+            .build()
+        return try {
+            NotificationManagerCompat.from(context).notify(4729, n)
+            true
+        } catch (e: SecurityException) {
+            false
+        }
+    }
 }

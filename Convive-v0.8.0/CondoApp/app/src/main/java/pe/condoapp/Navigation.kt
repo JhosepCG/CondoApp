@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,9 +83,18 @@ private fun Screen.depth(tabs: List<Tab>): Int =
 
 @Composable
 fun AppRoot() {
+    // Splash de Convive al abrir la app; luego ingreso o la app según la sesión guardada.
+    var splashDone by rememberSaveable { mutableStateOf(false) }
+    Crossfade(targetState = splashDone, animationSpec = tween(350), label = "splash") { done ->
+        if (!done) SplashScreen { splashDone = true } else AppContent()
+    }
+}
+
+@Composable
+private fun AppContent() {
     val user = Store.currentUser
     when {
-        user == null -> LoginScreen()
+        user == null -> AuthFlow()
         user.role != Role.SUPER_ADMIN && (user.id !in Store.onboarded || UiState.showOnboarding) ->
             OnboardingScreen(user) {
                 Store.markOnboarded(user.id)

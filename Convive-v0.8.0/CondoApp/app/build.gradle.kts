@@ -12,8 +12,8 @@ android {
         applicationId = "pe.condoapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.9.1"
+        versionCode = 14
+        versionName = "1.0"
     }
 
     buildTypes {
