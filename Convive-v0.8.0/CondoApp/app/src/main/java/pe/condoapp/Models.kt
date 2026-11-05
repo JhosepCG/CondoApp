@@ -97,7 +97,13 @@ data class Client(
     /** Inicio de la suscripción (marca el ciclo del plan anual). */
     val since: LocalDate = LocalDate.now(),
     /** Plan del catálogo al que pertenece. */
-    val planId: String? = null
+    val planId: String? = null,
+    /** Dirección y referencia (registro desde la app). */
+    val address: String? = null,
+    /** Tipo elegido al registrarse: Casa, Edificio o Condominio. */
+    val kind: String? = null,
+    /** Plan que empieza al terminar la prueba gratis (p_mes o p_anual). */
+    val nextPlanId: String? = null
 )
 
 /** Pago de la suscripción de un mes (period = "2026-10"). Solo lo registra el Super Admin. */
@@ -139,6 +145,29 @@ data class AppUser(
 const val DEFAULT_PASSWORD = "1234"
 
 data class UnitInfo(val clientId: String, val unit: String, val responsible: String)
+
+/** Unidad configurada por el propietario al registrarse: precio, estado y servicios que tiene. */
+data class UnitSpec(val clientId: String, val unit: String, val rent: Double, val available: Boolean, val services: List<String>)
+
+/** Datos de la cuenta nueva mientras la persona elige su rol (aún no se guarda nada). */
+data class SignUpDraft(val name: String, val email: String, val password: String?, val phone: String?)
+
+/** Llave de 6 dígitos que el propietario genera para una unidad. Trae renta, fechas y servicios. */
+data class Invitation(
+    val code: String,
+    val clientId: String,
+    val unit: String,
+    val rent: Double,
+    val payDay: Int,
+    val start: java.time.LocalDate,
+    val end: java.time.LocalDate,
+    val services: List<String>,
+    val expiresAt: Long,
+    val usedBy: String? = null,
+    val revoked: Boolean = false,
+    /** Solo para la llave de prueba 333333: simula que la persona ya vive en otro lugar. */
+    val demoActiveRental: String? = null
+)
 
 data class Charge(
     val id: String,

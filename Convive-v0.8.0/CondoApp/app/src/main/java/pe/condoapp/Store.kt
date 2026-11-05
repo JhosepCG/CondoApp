@@ -24,6 +24,7 @@ object Store {
     val clients = mutableStateListOf<Client>()
     val users = mutableStateListOf<AppUser>()
     val units = mutableStateListOf<UnitInfo>()
+    val unitSpecs = mutableStateListOf<UnitSpec>()
     val charges = mutableStateListOf<Charge>()
     val incidents = mutableStateListOf<Incident>()
     val notices = mutableStateListOf<Notice>()
@@ -239,35 +240,121 @@ object Store {
 
     const val NO_ACCOUNT = "NO_ACCOUNT"
 
+    /** Revisa que el correo y el celular de una cuenta nueva no estén usados. Devuelve el error o null. */
+    fun checkNewAccount(email: String, phone: String?): String? {
+        if (accountByEmail(email) != null) return "Este correo ya tiene una cuenta."
+        if (phone != null && accountByPhone(phone) != null) return "Este celular ya tiene una cuenta."
+        return null
+    }
+
+    /** Abre la sesión de una cuenta recién creada (botón «Ir a mi inicio»). */
+    fun loginAs(userId: String) {
+        users.firstOrNull { it.id == userId }?.let { startSession(it, true) }
+    }
+
     /**
-     * Cuenta nueva desde la app: por ahora crea un propietario (administrador de casa)
-     * con su casa en el plan gratuito y abre la sesión.
+     * Propietario nuevo: crea su propiedad (casa, edificio o condominio) con unidades, precios y servicios,
+     * en prueba gratis de 2 meses; al terminar sigue el plan elegido. Devuelve el id de la cuenta.
      */
-    fun signUpOwner(name: String, email: String, password: String, phone: String): String? {
-        val n = name.trim()
-        val e = email.trim().lowercase()
-        val ph = phone.filter { it.isDigit() }
-        if (n.length < 3) return "Escribe tu nombre completo."
-        if (!e.matches(Regex("[^@\\s]+@[^@\\s]+\\.[^@\\s]+"))) return "Revisa tu correo."
-        if (password.length < 4) return "La contraseña debe tener al menos 4 caracteres."
-        if (ph.length != 9) return "El celular debe tener 9 números."
-        if (accountByEmail(e) != null) return "Este correo ya tiene una cuenta."
-        if (accountByPhone(ph) != null) return "Este celular ya tiene una cuenta."
+    fun signUpOwner(
+        d: SignUpDraft,
+        kind: String,
+        propertyName: String,
+        address: String,
+        specs: List<UnitSpec>,
+        nextPlanId: String
+    ): String {
         val clientId = nextId()
         val userId = nextId()
-        val free = plans.firstOrNull { it.cycle == Plan.GRATIS }
+        val t = if (kind == "Condominio") Template.CONDOMINIO else Template.CASA_DEPAS
         clients.add(
             Client(
-                clientId, "Casa de " + n.substringBefore(" "), Template.CASA_DEPAS, 0.0, true,
-                allFeatures(Template.CASA_DEPAS), ownerId = userId, plan = Plan.GRATIS,
-                since = LocalDate.now(), planId = free?.id
+                clientId, propertyName.trim().ifEmpty { "Mi propiedad" }, t, 0.0, true, allFeatures(t),
+                ownerId = userId, plan = Plan.GRATIS, since = LocalDate.now(), planId = "p_trial",
+                address = address.trim().ifEmpty { null }, kind = kind, nextPlanId = nextPlanId
             )
         )
-        val u = AppUser(userId, n, suggestUsername(n), password, Role.ADMIN, clientId, null, phone = ph, email = e)
-        users.add(u)
+        val name = d.name.trim()
+        users.add(
+            AppUser(
+                userId, name, suggestUsername(name), d.password ?: java.util.UUID.randomUUID().toString(),
+                Role.ADMIN, clientId, null, phone = d.phone, email = d.email.trim().lowercase()
+            )
+        )
+        specs.forEach { sp ->
+            units.add(UnitInfo(clientId, sp.unit, name))
+            unitSpecs.add(sp.copy(clientId = clientId))
+        }
         save()
-        startSession(u, true)
-        return null
+        return userId
+    }
+
+    // ---------------- Llaves de invitación ----------------
+    private var inviteAttempts = 5
+    private val usedDemoCodes = mutableSetOf<String>()
+
+    /** Llaves de prueba: 482917 válida, 111111 vencida, 333333 válida pero la persona ya alquila en otro lugar. */
+    private fun demoInvites(): List<Invitation> {
+        val now = System.currentTimeMillis()
+        val h48 = 48L * 3600 * 1000
+        val svc = listOf("Agua", "Luz", "Internet", "Cable", "Gas")
+        val start = LocalDate.of(2026, 11, 12)
+        val end = LocalDate.of(2027, 3, 12)
+        return listOf(
+            Invitation("482917", "c2", "1° Piso A", 650.0, 15, start, end, svc, now + h48),
+            Invitation("111111", "c2", "1° Piso B", 650.0, 15, start, end, svc, now - 1000),
+            Invitation("333333", "c2", "1° Piso B", 650.0, 15, start, end, svc, now + h48, demoActiveRental = "Edificio Ruiz - 3 Piso A")
+        )
+    }
+
+    sealed interface InviteCheck {
+        data class Ok(val inv: Invitation, val client: Client, val owner: AppUser?) : InviteCheck
+        data class Fail(val toast: String, val detail: String, val attemptsLeft: Int) : InviteCheck
+    }
+
+    fun checkInvitation(code: String): InviteCheck {
+        if (inviteAttempts <= 0) return InviteCheck.Fail("Demasiados intentos", "Por seguridad bloqueamos la llave. Pide una nueva a tu propietario.", 0)
+        val inv = demoInvites().firstOrNull { it.code == code }
+        val taken = inv != null && (code in usedDemoCodes ||
+            users.any { it.role == Role.TENANT && it.clientId == inv.clientId && it.unit == inv.unit })
+        val fail = when {
+            inv == null -> "Esa llave no existe" to "Revisa los 6 dígitos con tu propietario."
+            inv.revoked -> "Esta llave fue anulada" to "Pide una nueva a tu propietario."
+            taken -> "Esta llave ya fue usada" to "Cada llave sirve una sola vez. Pide una nueva al propietario."
+            inv.expiresAt < System.currentTimeMillis() -> "Esta llave ya venció" to "Las llaves duran 48 horas. Pide una nueva al propietario"
+            else -> null
+        }
+        if (fail != null) {
+            inviteAttempts--
+            return InviteCheck.Fail(fail.first, fail.second, inviteAttempts)
+        }
+        val c = client(inv!!.clientId) ?: return InviteCheck.Fail("Esa llave no existe", "Revisa los 6 dígitos con tu propietario.", inviteAttempts)
+        inviteAttempts = 5
+        return InviteCheck.Ok(inv, c, users.firstOrNull { it.id == c.ownerId })
+    }
+
+    /** Primer día de pago a partir del inicio del alquiler. */
+    fun firstPayment(inv: Invitation): LocalDate {
+        val d = inv.start.withDayOfMonth(minOf(inv.payDay, inv.start.lengthOfMonth()))
+        return if (d.isBefore(inv.start)) inv.start.plusMonths(1).let { it.withDayOfMonth(minOf(inv.payDay, it.lengthOfMonth())) } else d
+    }
+
+    /** Inquilino nuevo vinculado con su llave: cuenta, contrato y primer cobro. Devuelve el id de la cuenta. */
+    fun signUpTenant(d: SignUpDraft, inv: Invitation): String {
+        val userId = nextId()
+        val name = d.name.trim()
+        users.add(
+            AppUser(
+                userId, name, suggestUsername(name), d.password ?: java.util.UUID.randomUUID().toString(),
+                Role.TENANT, inv.clientId, inv.unit, phone = d.phone, email = d.email.trim().lowercase()
+            )
+        )
+        contracts.add(Contract(userId, inv.clientId, "", inv.start, inv.end, false, 0.0, inv.rent, inv.services, since = inv.start))
+        if (units.none { it.clientId == inv.clientId && it.unit == inv.unit }) units.add(UnitInfo(inv.clientId, inv.unit, name))
+        charges.add(Charge(nextId(), inv.clientId, inv.unit, "Renta mensual", inv.rent, firstPayment(inv)))
+        usedDemoCodes.add(inv.code)
+        save()
+        return userId
     }
 
     /** La administración (o el Super Admin) asigna una contraseña nueva. */
@@ -959,7 +1046,7 @@ object Store {
 
     // ---------------- Datos de prueba ----------------
     private fun seed() {
-        clients.clear(); users.clear(); units.clear(); charges.clear()
+        clients.clear(); users.clear(); units.clear(); unitSpecs.clear(); charges.clear()
         incidents.clear(); notices.clear(); emergencies.clear()
         meterRequests.clear(); meterReadings.clear()
         contracts.clear(); onboarded.clear(); subscriptionPayments.clear(); activations.clear()
@@ -968,8 +1055,8 @@ object Store {
             listOf(
                 SubscriptionPlan("p_free", "Plan gratuito", 0.0, Plan.GRATIS, fullFeatures = true),
                 SubscriptionPlan("p_trial", "Plan prueba", 0.0, Plan.GRATIS, trial = true),
-                SubscriptionPlan("p_mes", "Plan mensual", 30.0, Plan.PAGO, fullFeatures = true, reminder = true),
-                SubscriptionPlan("p_anual", "Plan anual", 300.0, Plan.ANUAL, fullFeatures = true, reminder = true)
+                SubscriptionPlan("p_mes", "Plan mensual", 29.90, Plan.PAGO, fullFeatures = true, reminder = true),
+                SubscriptionPlan("p_anual", "Plan anual", 319.90, Plan.ANUAL, fullFeatures = true, reminder = true)
             )
         )
         seq = 100
@@ -977,7 +1064,7 @@ object Store {
         clients.addAll(
             listOf(
                 Client("c1", "Condominio Los Álamos", Template.CONDOMINIO, 150.0, true, defaultsFor(Template.CONDOMINIO), ownerId = "u1", paymentMethod = "Tarjeta de crédito/débito", since = LocalDate.now().minusMonths(8), planId = "p_mes"),
-                Client("c2", "Casa Quispe · 4 depas", Template.CASA_DEPAS, 40.0, true, defaultsFor(Template.CASA_DEPAS), ownerId = "u4", paymentMethod = "Yape", since = LocalDate.now().minusMonths(3), planId = "p_mes"),
+                Client("c2", "Casa Quispe · 4 depas", Template.CASA_DEPAS, 40.0, true, defaultsFor(Template.CASA_DEPAS), ownerId = "u4", paymentMethod = "Yape", since = LocalDate.now().minusMonths(3), planId = "p_mes", address = "Av. Los Álamos 245, San Martín de Porres"),
                 Client("c3", "Residencial Las Palmas", Template.CONDOMINIO, 30.0, true, defaultsFor(Template.CONDOMINIO), ownerId = "u9", paymentMethod = "Plin", since = LocalDate.now().minusMonths(2), planId = "p_mes"),
                 Client("c4", "Edificio San Borja", Template.CONDOMINIO, 0.0, true, defaultsFor(Template.CONDOMINIO), ownerId = "u10", plan = Plan.GRATIS, paymentMethod = "Yape", since = LocalDate.now().minusDays(10), planId = "p_trial")
             )
@@ -1087,6 +1174,7 @@ object Store {
             j.putNullable("ownerId", c.ownerId); j.put("plan", c.plan.name)
             j.putNullable("payMethod", c.paymentMethod); j.put("since", c.since.toString())
             j.putNullable("planId", c.planId)
+            j.putNullable("address", c.address); j.putNullable("kind", c.kind); j.putNullable("nextPlanId", c.nextPlanId)
             val m = JSONArray()
             c.modules.forEach { f -> m.put(f.name) }
             j.put("modules", m)
@@ -1113,6 +1201,15 @@ object Store {
             una.put(j)
         }
         o.put("units", una)
+
+        val usa = JSONArray()
+        unitSpecs.forEach { u ->
+            val j = JSONObject()
+            j.put("clientId", u.clientId); j.put("unit", u.unit); j.put("rent", u.rent); j.put("available", u.available)
+            j.put("services", JSONArray(u.services))
+            usa.put(j)
+        }
+        o.put("unitSpecs", usa)
 
         val cha = JSONArray()
         charges.forEach { c ->
@@ -1251,8 +1348,13 @@ object Store {
                 plan = runCatching { Plan.valueOf(j.getString("plan")) }.getOrDefault(Plan.PAGO),
                 paymentMethod = if (j.has("payMethod")) j.str("payMethod") else null,
                 planId = if (j.has("planId")) j.str("planId") else null,
+                address = if (j.has("address")) j.str("address") else null,
+                kind = if (j.has("kind")) j.str("kind") else null,
+                nextPlanId = if (j.has("nextPlanId")) j.str("nextPlanId") else null,
                 since = runCatching { LocalDate.parse(j.getString("since")) }.getOrDefault(LocalDate.now())
             )
+        }.map {
+            if (it.id == "c2" && it.address == null) it.copy(address = "Av. Los Álamos 245, San Martín de Porres") else it
         }
         val us = o.getJSONArray("users").objects().map { j ->
             AppUser(
@@ -1269,6 +1371,11 @@ object Store {
         }
         val un = o.getJSONArray("units").objects().map { j ->
             UnitInfo(j.getString("clientId"), j.getString("unit"), j.getString("responsible"))
+        }
+        val us2 = (o.optJSONArray("unitSpecs") ?: JSONArray()).objects().map { j ->
+            val sv = j.getJSONArray("services")
+            UnitSpec(j.getString("clientId"), j.getString("unit"), j.getDouble("rent"), j.getBoolean("available"),
+                (0 until sv.length()).map { sv.getString(it) })
         }
         val ch = o.getJSONArray("charges").objects().map { j ->
             Charge(
@@ -1362,6 +1469,7 @@ object Store {
         clients.clear(); clients.addAll(cl)
         users.clear(); users.addAll(us)
         units.clear(); units.addAll(un)
+        unitSpecs.clear(); unitSpecs.addAll(us2)
         charges.clear(); charges.addAll(ch)
         incidents.clear(); incidents.addAll(inc)
         notices.clear(); notices.addAll(no)
@@ -1373,7 +1481,13 @@ object Store {
         onboarded.clear(); onboarded.addAll((0 until ob.length()).map { ob.getString(it) })
         activations.clear()
         o.optJSONObject("activations")?.let { a -> a.keys().forEach { k -> activations[k] = a.getString(k) } }
-        plans.clear(); plans.addAll(pl)
+        plans.clear(); plans.addAll(pl.map {
+            when {
+                it.id == "p_mes" && it.price == 30.0 -> it.copy(price = 29.90)
+                it.id == "p_anual" && it.price == 300.0 -> it.copy(price = 319.90)
+                else -> it
+            }
+        })
         supportRequests.clear(); supportRequests.addAll(sr)
         seq = o.getInt("seq")
         true
