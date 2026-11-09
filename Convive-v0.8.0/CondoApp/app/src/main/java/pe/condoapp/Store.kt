@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import org.json.JSONArray
 import org.json.JSONObject
 import java.time.LocalDate
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
@@ -368,8 +369,272 @@ object Store {
     }
 
     fun logout() {
+        val u = currentUser
         currentUser = null
         prefs?.edit()?.remove("session")?.apply()
+        // Cuenta de la base de datos: se cierra la sesión, salvo que entre con huella en este teléfono.
+        if (u != null && isCloudId(u.id) && biometricUserId() != u.id) bg.launch { Cloud.signOut() }
+    }
+
+    // ---------------- Cuentas en la base de datos (Supabase) ----------------
+    private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+
+    /** Las cuentas de la base de datos usan un UUID; las de prueba del teléfono, ids cortos. */
+    fun isCloudId(id: String?): Boolean = id != null && id.length == 36 && id.count { it == '-' } == 4
+
+    sealed interface SignIn {
+        data object Ok : SignIn
+        data object WrongCredentials : SignIn
+        /** Cuenta nueva (o con Google por primera vez): falta elegir propietario o inquilino. */
+        data class NeedsRole(val draft: SignUpDraft) : SignIn
+        data class Error(val message: String) : SignIn
+    }
+
+    private fun JSONObject.text(vararg keys: String): String? =
+        keys.firstNotNullOfOrNull { k -> if (has(k) && !isNull(k)) optString(k).trim().takeIf { it.isNotEmpty() && it != "null" } else null }
+
+    private fun JSONObject.date(vararg keys: String): LocalDate? =
+        text(*keys)?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() }
+
+    private fun JSONArray?.strings(): List<String> = if (this == null) emptyList() else (0 until length()).mapNotNull { optString(it).takeIf { s -> s.isNotEmpty() } }
+
+    /** Ingreso: primero las cuentas de prueba del teléfono; si no, la base de datos (DNI, celular o correo). */
+    suspend fun signIn(identifier: String, password: String, remember: Boolean): SignIn {
+        val local = findAccount(identifier)
+        if (local != null && !isCloudId(local.id) && local.password == password) {
+            blockedReason(local)?.let { return SignIn.Error(it) }
+            startSession(local, remember)
+            return SignIn.Ok
+        }
+        return try {
+            Cloud.login(identifier.trim(), password, remember)
+            afterCloudSignIn(remember)
+        } catch (e: Cloud.Failure) {
+            when {
+                e.code == "email_not_confirmed" -> SignIn.Error("Confirma tu correo para ingresar.")
+                e.status == 400 || e.code == "invalid_credentials" -> SignIn.WrongCredentials
+                else -> SignIn.Error(Cloud.message(e))
+            }
+        } catch (e: Cloud.Offline) {
+            if (local != null) SignIn.WrongCredentials else SignIn.Error(Cloud.message(e))
+        }
+    }
+
+    /** Con la sesión de la base de datos abierta: entra a su inicio o pide el rol si la cuenta es nueva. */
+    suspend fun afterCloudSignIn(remember: Boolean = true): SignIn {
+        val acc = Cloud.myAccount()
+        val u = applyAccount(acc)
+        if (u == null) {
+            val p = acc.optJSONObject("profile") ?: acc.optJSONObject("user") ?: acc.optJSONObject("me") ?: acc
+            return SignIn.NeedsRole(
+                SignUpDraft(p.text("name", "full_name") ?: "", p.text("email") ?: Cloud.session?.email ?: "", null, p.text("phone"))
+            )
+        }
+        blockedReason(u)?.let { Cloud.forget(); return SignIn.Error(it) }
+        Cloud.remember(remember)
+        startSession(u, remember)
+        return SignIn.Ok
+    }
+
+    /** Vuelve a leer la cuenta de la base de datos (al abrir la app o después de registrarse). */
+    suspend fun syncAccount(): AppUser? = applyAccount(Cloud.myAccount())
+
+    /** Al abrir la app con una cuenta de la base de datos: actualiza datos; si la sesión terminó, sale. */
+    suspend fun refreshCloud() {
+        val u = currentUser ?: return
+        if (!isCloudId(u.id) || !Cloud.signedIn) return
+        try {
+            val fresh = syncAccount()
+            if (fresh != null && currentUser?.id == fresh.id) currentUser = fresh
+        } catch (e: Cloud.Failure) {
+            if (e.code == "session_expired") logout()
+        } catch (_: Cloud.Offline) {
+        }
+    }
+
+    private fun upsertUser(u: AppUser) {
+        val i = users.indexOfFirst { it.id == u.id }
+        if (i >= 0) users[i] = u.copy(photoPath = users[i].photoPath, coverPath = users[i].coverPath) else users.add(u)
+    }
+
+    private fun upsertClient(c: Client) {
+        val i = clients.indexOfFirst { it.id == c.id }
+        if (i >= 0) clients[i] = c else clients.add(c)
+    }
+
+    /**
+     * Copia en el teléfono la cuenta de la base de datos (perfil, propiedad, unidades e inquilinos)
+     * para que todas las pantallas funcionen igual. Devuelve null si aún no eligió su rol.
+     */
+    private suspend fun applyAccount(acc: JSONObject): AppUser? {
+        val p = acc.optJSONObject("profile") ?: acc.optJSONObject("user") ?: acc.optJSONObject("me") ?: acc
+        val uid = p.text("id", "user_id") ?: Cloud.userId ?: return null
+        val role = when (p.text("role")) {
+            "ADMIN" -> Role.ADMIN
+            "TENANT" -> Role.TENANT
+            "SUPER_ADMIN" -> Role.SUPER_ADMIN
+            else -> return null
+        }
+        val c = acc.optJSONObject("client")
+        val sub = acc.optJSONObject("subscription")
+        Cloud.saveSubscription(if (role == Role.ADMIN) sub else null)
+        val clientId = p.text("client_id") ?: c?.text("id")
+        val name = p.text("name", "full_name") ?: ""
+        val ownerName = acc.text("owner_name") ?: c?.text("owner_name") ?: acc.optJSONObject("owner")?.text("name")
+            ?: if (role == Role.ADMIN) name else null
+        val ownerId = c?.text("owner_id") ?: acc.optJSONObject("owner")?.text("id") ?: if (role == Role.ADMIN) uid else null
+        if (clientId != null) {
+            val old = client(clientId)
+            val kind = c?.text("kind") ?: old?.kind
+            val t = if (kind == "Condominio" || c?.text("template") == "CONDOMINIO") Template.CONDOMINIO else Template.CASA_DEPAS
+            val status = sub?.text("status")
+            val annual = sub?.text("plan_id") == "anual"
+            val plan = when {
+                sub == null -> old?.plan ?: Plan.GRATIS
+                status == "prueba" -> Plan.GRATIS
+                annual -> Plan.ANUAL
+                else -> Plan.PAGO
+            }
+            upsertClient(
+                Client(
+                    id = clientId,
+                    name = c?.text("name", "property") ?: old?.name ?: "Mi propiedad",
+                    template = t,
+                    monthlyFee = when (plan) { Plan.ANUAL -> 319.90; Plan.PAGO -> 29.90; else -> 0.0 },
+                    active = c?.optBoolean("active", true) ?: old?.active ?: true,
+                    modules = old?.modules ?: allFeatures(t),
+                    ownerId = ownerId ?: old?.ownerId,
+                    plan = plan,
+                    paymentMethod = if (sub?.text("store") == "google_play") "Google Play" else old?.paymentMethod,
+                    since = c?.date("since", "created_at") ?: old?.since ?: LocalDate.now(),
+                    planId = if (plan == Plan.GRATIS) "p_trial" else if (annual) "p_anual" else "p_mes",
+                    address = c?.text("address") ?: old?.address,
+                    kind = kind,
+                    nextPlanId = if (annual) "p_anual" else "p_mes"
+                )
+            )
+            if (ownerId != null && ownerId != uid && ownerName != null) {
+                upsertUser(AppUser(ownerId, ownerName, "", "", Role.ADMIN, clientId, null))
+            }
+        }
+        val old = users.firstOrNull { it.id == uid }
+        val user = AppUser(
+            uid, name, p.text("username") ?: old?.username ?: suggestUsername(name, uid), "", role, clientId,
+            p.text("unit"), p.text("dni"), p.text("phone"), old?.photoPath, old?.coverPath,
+            p.text("email") ?: Cloud.session?.email
+        )
+        upsertUser(user)
+        if (role == Role.ADMIN && clientId != null) {
+            runCatching { syncUnits(clientId, name) }
+            runCatching { syncTenants(clientId) }
+        }
+        save()
+        return user
+    }
+
+    /** Unidades del propietario con su renta, estado y servicios. */
+    private suspend fun syncUnits(clientId: String, ownerName: String) {
+        val rows = Cloud.units(clientId)
+        if (rows.length() == 0) return
+        units.removeAll { it.clientId == clientId }
+        unitSpecs.removeAll { it.clientId == clientId }
+        for (i in 0 until rows.length()) {
+            val r = rows.getJSONObject(i)
+            val unit = r.text("unit", "name") ?: continue
+            val status = r.text("status")
+            units.add(UnitInfo(clientId, unit, r.text("responsible") ?: ownerName))
+            unitSpecs.add(
+                UnitSpec(clientId, unit, r.optDouble("rent", 0.0).takeIf { !it.isNaN() } ?: 0.0,
+                    status == null || status == "disponible", r.optJSONArray("services").strings())
+            )
+        }
+    }
+
+    /** Inquilinos que ya se vincularon con su llave. */
+    private suspend fun syncTenants(clientId: String) {
+        val rows = Cloud.tenants(clientId)
+        for (i in 0 until rows.length()) {
+            val r = rows.getJSONObject(i)
+            val id = r.text("id") ?: continue
+            val n = r.text("name") ?: continue
+            val old = users.firstOrNull { it.id == id }
+            upsertUser(
+                AppUser(id, n, r.text("username") ?: old?.username ?: suggestUsername(n, id), "", Role.TENANT, clientId,
+                    r.text("unit"), r.text("dni"), r.text("phone"), old?.photoPath, old?.coverPath, r.text("email"))
+            )
+        }
+    }
+
+    /** Llave: en la base de datos si hay sesión; si no, las llaves de prueba. */
+    suspend fun checkKey(code: String): InviteCheck {
+        if (!Cloud.signedIn) return checkInvitation(code)
+        return try {
+            val r = Cloud.previewInvitation(code)
+            if (r.has("ok") && !r.optBoolean("ok")) keyFail(r.text("reason", "error") ?: "no_existe", r.optInt("attempts_left", -1))
+            else if (r.optBoolean("is_owner")) InviteCheck.Fail("Esta llave es de tu propiedad", "Compártela con tu inquilino para que se vincule.", -1)
+            else {
+                val clientId = r.text("client_id") ?: "llave"
+                val start = r.date("start_date", "start", "starts_on") ?: LocalDate.now()
+                val active = when (val a = r.opt("active_rental")) {
+                    is JSONObject -> listOfNotNull(a.text("property", "name"), a.text("unit")).joinToString(" - ").ifEmpty { "otra propiedad" }
+                    is String -> a.takeIf { it.isNotBlank() && it != "null" && it != "false" }
+                    is Boolean -> if (a) "otra propiedad" else null
+                    else -> null
+                }
+                val inv = Invitation(
+                    code, clientId, r.text("unit") ?: "", r.optDouble("rent", 0.0).takeIf { !it.isNaN() } ?: 0.0,
+                    r.optInt("pay_day", start.dayOfMonth.coerceAtMost(28)), start,
+                    r.date("end_date", "end", "ends_on") ?: start.plusYears(1),
+                    r.optJSONArray("services").strings(), Long.MAX_VALUE, demoActiveRental = active
+                )
+                val cl = Client(clientId, r.text("property", "property_name", "client_name") ?: "Tu nuevo hogar", Template.CASA_DEPAS, 0.0, true, emptySet(),
+                    address = r.text("address"))
+                val owner = AppUser(r.text("owner_id") ?: "owner", r.text("owner", "owner_name") ?: "Propietario", "", "", Role.ADMIN, clientId, null)
+                InviteCheck.Ok(inv, cl, owner)
+            }
+        } catch (e: Cloud.Failure) {
+            keyFail(e.code, -1)
+        } catch (e: Cloud.Offline) {
+            InviteCheck.Fail("Sin conexión", "Revisa tu internet e inténtalo de nuevo.", -1)
+        }
+    }
+
+    fun keyFail(reason: String, left: Int = -1): InviteCheck.Fail {
+        val (t, d) = when (reason) {
+            "anulada" -> "Esta llave fue anulada" to "Pide una nueva a tu propietario."
+            "usada" -> "Esta llave ya fue usada" to "Cada llave sirve una sola vez. Pide una nueva al propietario."
+            "vencida" -> "Esta llave ya venció" to "Las llaves duran 48 horas. Pide una nueva al propietario"
+            "bloqueada" -> "Demasiados intentos" to "Por seguridad bloqueamos la llave. Pide una nueva a tu propietario."
+            else -> "Esa llave no existe" to "Revisa los 6 dígitos con tu propietario."
+        }
+        return InviteCheck.Fail(t, d, if (reason == "bloqueada") 0 else left)
+    }
+
+    /** Inquilino: se vincula con la llave. Devuelve el id de su cuenta. */
+    suspend fun joinWithKey(d: SignUpDraft, ok: InviteCheck.Ok): String {
+        if (!Cloud.signedIn) return signUpTenant(d, ok.inv)
+        val r = Cloud.redeemInvitation(ok.inv.code)
+        val u = syncAccount() ?: throw Cloud.Failure("no_role", 500)
+        val inv = ok.inv
+        val clientId = u.clientId ?: inv.clientId
+        val due = r.date("first_due") ?: firstPayment(inv)
+        contracts.removeAll { it.userId == u.id }
+        contracts.add(Contract(u.id, clientId, u.dni ?: "", inv.start, inv.end, false, 0.0, inv.rent, inv.services, since = inv.start))
+        if (units.none { it.clientId == clientId && it.unit == inv.unit }) units.add(UnitInfo(clientId, inv.unit, ok.owner?.name ?: u.name))
+        if (charges.none { it.clientId == clientId && it.unit == inv.unit && it.due == due }) {
+            charges.add(Charge(nextId(), clientId, inv.unit, "Renta mensual", inv.rent, due))
+        }
+        // La propiedad del inquilino guarda el nombre y la dirección que vio al validar la llave.
+        client(clientId)?.let { c -> if (c.address == null && ok.client.address != null) upsertClient(c.copy(address = ok.client.address)) }
+        save()
+        return u.id
+    }
+
+    /** Propietario: genera la llave para una unidad. Devuelve (código, vence) o lanza el error. */
+    suspend fun createKey(unit: String, rent: Double, payDay: Int, start: LocalDate, end: LocalDate, services: List<String>): Pair<String, String?> {
+        val r = Cloud.createInvitation(unit, rent, payDay, start.toString(), end.toString(), services)
+        val code = r.text("code") ?: throw Cloud.Failure("no_code", 500)
+        return code to r.text("expires_at")
     }
 
     // ---------------- Tips de ayuda (se muestran una sola vez) ----------------

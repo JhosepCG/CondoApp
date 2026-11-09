@@ -17,6 +17,7 @@ class MainActivity : FragmentActivity() {
             navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         )
         super.onCreate(savedInstanceState)
+        Cloud.init(applicationContext)
         Store.init(applicationContext)
         setContent {
             CondoTheme { AppRoot() }

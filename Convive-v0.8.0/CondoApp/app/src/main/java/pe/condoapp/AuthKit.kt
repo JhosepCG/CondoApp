@@ -206,14 +206,25 @@ internal data class AuthToast(val text: String, val kind: Kind = Kind.Error, val
 internal class AuthUi(private val scope: CoroutineScope) {
     var loading by mutableStateOf(false)
     var toast by mutableStateOf<AuthToast?>(null)
-    fun busy(ms: Long = 900, then: () -> Unit) {
+    /**
+     * Muestra el indicador de carga mientras corre [then] (consultas a la base de datos incluidas).
+     * Dura al menos [ms] para que no parpadee; si algo falla, avisa con un mensaje.
+     */
+    fun busy(ms: Long = 500, then: suspend () -> Unit) {
         if (loading) return
         scope.launch {
             toast = null
             loading = true
-            delay(ms)
-            loading = false
-            then()
+            try {
+                delay(ms)
+                then()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error(Cloud.message(e))
+            } finally {
+                loading = false
+            }
         }
     }
     fun error(msg: String) { toast = AuthToast(msg, AuthToast.Kind.Error) }

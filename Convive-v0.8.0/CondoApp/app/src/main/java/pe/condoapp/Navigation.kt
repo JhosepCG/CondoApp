@@ -93,6 +93,8 @@ fun AppRoot() {
 @Composable
 private fun AppContent() {
     val user = Store.currentUser
+    // Cuentas de la base de datos: al entrar se actualizan propiedad, unidades, inquilinos y suscripción.
+    LaunchedEffect(user?.id) { Store.refreshCloud() }
     when {
         user == null -> AuthFlow()
         user.role != Role.SUPER_ADMIN && (user.id !in Store.onboarded || UiState.showOnboarding) ->

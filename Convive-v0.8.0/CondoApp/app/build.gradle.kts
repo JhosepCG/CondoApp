@@ -57,4 +57,10 @@ dependencies {
     implementation("androidx.fragment:fragment-ktx:1.8.5")
     // Animaciones de LottieFiles (archivos .json en res/raw)
     implementation("com.airbnb.android:lottie-compose:6.6.2")
+    // Suscripción con Google Play
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
+    // «Continuar con Google» (Credential Manager)
+    implementation("androidx.credentials:credentials:1.3.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
 }

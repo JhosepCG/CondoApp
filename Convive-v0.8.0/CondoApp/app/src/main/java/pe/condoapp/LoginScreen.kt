@@ -75,7 +75,8 @@ internal sealed interface AuthStep {
     data object SignUp : AuthStep { override val key: String get() = "signup" }
     data object ForgotChoose : AuthStep { override val key: String get() = "forgot" }
     data class ForgotEnter(val byEmail: Boolean) : AuthStep { override val key: String get() = if (byEmail) "forgot-mail" else "forgot-phone" }
-    data class Otp(val destination: String, val resetUserId: String) : AuthStep { override val key: String get() = "otp-$destination" }
+    /** resetUserId vacío = cuenta de la base de datos (el código lo envía Supabase a [email] o al correo del [phone]). */
+    data class Otp(val destination: String, val resetUserId: String, val email: String? = null, val phone: String? = null) : AuthStep { override val key: String get() = "otp-$destination" }
     data class NewPassword(val userId: String) : AuthStep { override val key: String get() = "newpass-$userId" }
     data object PasswordUpdated : AuthStep { override val key: String get() = "pw-ok" }
     data object Rol : AuthStep { override val key: String get() = "rol" }
@@ -149,6 +150,9 @@ fun AuthFlow() {
     var draft by remember { mutableStateOf<SignUpDraft?>(null) }
     val owner = remember { OwnerSetup() }
     var invite by remember { mutableStateOf<Store.InviteCheck.Ok?>(null) }
+    // Sesión temporal que da el código de recuperación (solo para guardar la nueva contraseña).
+    var recovery by remember { mutableStateOf<Cloud.Session?>(null) }
+    val activity = context as? android.app.Activity
     val version = remember {
         runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: ""
     }
@@ -183,7 +187,27 @@ fun AuthFlow() {
         return shown
     }
 
-    val openGoogle: () -> Unit = { googleOpen = true }
+    // Google real con la cuenta del teléfono; sin ID de cliente configurado, la cuenta de prueba.
+    val openGoogle: () -> Unit = {
+        if (activity != null && GoogleAuth.configured(context)) ui.busy(150) {
+            when (val g = GoogleAuth.signIn(activity)) {
+                is GoogleAuth.Result.Ok -> {
+                    Cloud.signInWithGoogle(g.idToken, g.rawNonce)
+                    when (val r = Store.afterCloudSignIn()) {
+                        Store.SignIn.Ok, Store.SignIn.WrongCredentials -> Unit
+                        is Store.SignIn.NeedsRole -> {
+                            draft = r.draft.copy(name = r.draft.name.ifBlank { g.name ?: "" }, email = r.draft.email.ifBlank { g.email })
+                            nav.go(AuthStep.Rol)
+                        }
+                        is Store.SignIn.Error -> ui.error(r.message)
+                    }
+                }
+                GoogleAuth.Result.Cancelled -> ui.neutral("No se completó el ingreso con Google. Inténtelo de nuevo")
+                GoogleAuth.Result.NoAccounts -> ui.neutral("Agrega una cuenta de Google a tu teléfono para continuar")
+                is GoogleAuth.Result.Failed -> ui.error("No pudimos conectar con Google. Inténtalo de nuevo.")
+            }
+        } else googleOpen = true
+    }
     val light = nav.current in listOf(
         AuthStep.OwnerIntro, AuthStep.OwnerType, AuthStep.OwnerPlace, AuthStep.OwnerUnits, AuthStep.OwnerPrices,
         AuthStep.OwnerServices, AuthStep.OwnerReview, AuthStep.OwnerPlan, AuthStep.PasswordUpdated
@@ -207,19 +231,37 @@ fun AuthFlow() {
             holder.SaveableStateProvider(step.key) {
                 when (step) {
                     AuthStep.Welcome -> WelcomeStep(version, onLogin = { nav.go(AuthStep.Login) }, onGoogle = openGoogle, onSignUp = { nav.go(AuthStep.SignUp) })
-                    AuthStep.Login -> LoginStep(ui, nav, version, prefillUser, openGoogle)
+                    AuthStep.Login -> LoginStep(ui, nav, version, prefillUser, openGoogle) { d -> draft = d; nav.go(AuthStep.Rol) }
                     AuthStep.SignUp -> SignUpStep(ui, nav, version) { d -> draft = d; nav.go(AuthStep.Rol) }
                     AuthStep.ForgotChoose -> ForgotChooseStep(nav, version)
                     is AuthStep.ForgotEnter -> ForgotEnterStep(ui, nav, version, step.byEmail) { sendCode(it) }
                     is AuthStep.Otp -> OtpStep(
                         ui, nav, version, step,
-                        currentCode = { pendingCode },
-                        resend = { if (sendCode(step.destination)) ui.info("Te enviamos un nuevo código") },
-                        onVerified = { nav.go(AuthStep.NewPassword(step.resetUserId)) }
+                        check = { code ->
+                            if (step.resetUserId.isNotEmpty()) code == pendingCode
+                            else try {
+                                recovery = Cloud.recoverVerify(step.email, step.phone, code)
+                                true
+                            } catch (e: Cloud.Failure) {
+                                if (e.code == "invalid_code" || e.status == 400) false else throw e
+                            }
+                        },
+                        resend = {
+                            if (step.resetUserId.isNotEmpty()) { if (sendCode(step.destination)) ui.info("Te enviamos un nuevo código") }
+                            else ui.busy(200) { Cloud.recoverSend(step.email, step.phone); ui.info("Te enviamos un nuevo código") }
+                        },
+                        onVerified = { nav.go(AuthStep.NewPassword(step.resetUserId.ifEmpty { "cloud:" + (step.email ?: step.phone ?: "") })) }
                     )
                     is AuthStep.NewPassword -> NewPasswordStep(ui, version, onBack = { nav.back() }) { pw ->
-                        Store.resetPassword(step.userId, pw)
-                        prefillUser.value = Store.users.firstOrNull { it.id == step.userId }?.username
+                        if (step.userId.startsWith("cloud:")) {
+                            val temp = recovery ?: throw Cloud.Failure("session_expired", 401)
+                            Cloud.setNewPassword(temp, pw)
+                            recovery = null
+                            prefillUser.value = step.userId.removePrefix("cloud:")
+                        } else {
+                            Store.resetPassword(step.userId, pw)
+                            prefillUser.value = Store.users.firstOrNull { it.id == step.userId }?.username
+                        }
                         nav.go(AuthStep.PasswordUpdated)
                     }
                     AuthStep.PasswordUpdated -> SuccessPage(
@@ -242,13 +284,49 @@ fun AuthFlow() {
                     AuthStep.OwnerPlan -> OwnerPlanStep(owner, onBack = { nav.back() }) {
                         val d = draft ?: return@OwnerPlanStep
                         ui.busy {
-                            val id = Store.signUpOwner(d, owner.kind, owner.name, owner.address, owner.specs(), if (owner.annual) "p_anual" else "p_mes")
-                            nav.go(AuthStep.OwnerDone(id))
+                            if (!Cloud.signedIn) {
+                                // Cuenta de prueba (sin base de datos): todo queda en el teléfono.
+                                val id = Store.signUpOwner(d, owner.kind, owner.name, owner.address, owner.specs(), if (owner.annual) "p_anual" else "p_mes")
+                                nav.go(AuthStep.OwnerDone(id))
+                                return@busy
+                            }
+                            // 1) Se guarda la propiedad (una sola vez, aunque vuelva a intentar el pago).
+                            if (owner.cloudClientId == null) {
+                                owner.cloudClientId = Cloud.registerOwner(
+                                    owner.kind, owner.name.trim(), owner.address.trim(), owner.reference.trim(), owner.specs(), owner.annual
+                                )
+                            }
+                            // 2) Pago de Google Play: la prueba de 2 meses empieza cuando Google lo aprueba.
+                            val basePlan = if (owner.annual) "anual" else "mensual"
+                            val pay = if (activity == null) PlayBilling.Result.Unavailable("activity")
+                            else PlayBilling.subscribe(activity, basePlan, Cloud.userId ?: "") { token ->
+                                Cloud.verifyPlay(token, PlayBilling.PRODUCT, basePlan)
+                            }
+                            when (pay) {
+                                is PlayBilling.Result.Subscribed -> Unit
+                                PlayBilling.Result.Cancelled -> {
+                                    ui.neutral("No se completó el pago con Google. Inténtelo de nuevo")
+                                    return@busy
+                                }
+                                is PlayBilling.Result.Failed -> {
+                                    ui.error("Google Play no pudo completar el pago. Inténtalo de nuevo.")
+                                    return@busy
+                                }
+                                is PlayBilling.Result.Unavailable ->
+                                    ui.info("Google Play se activará cuando Convive esté en Play Store. Tu prueba gratis ya empezó.")
+                            }
+                            // 3) Paso 9: «¡… está lista!»
+                            val u = Store.syncAccount() ?: throw Cloud.Failure("no_role", 500)
+                            nav.go(AuthStep.OwnerDone(u.id))
                         }
                     }
                     is AuthStep.OwnerDone -> SuccessPage(
                         AIc.Check, "¡${owner.name.trim().ifEmpty { "Tu propiedad" }} está lista!",
-                        body = { Text("Tu prueba gratis termina el ${longDate(java.time.LocalDate.now().plusDays(60))}.\nTe avisaremos antes.", style = TBody, textAlign = TextAlign.Center) },
+                        body = {
+                            val ends = Cloud.subscription?.trialEndsAt?.let { runCatching { java.time.LocalDate.parse(it.take(10)) }.getOrNull() }
+                                ?: java.time.LocalDate.now().plusDays(60)
+                            Text("Tu prueba gratis termina el ${longDate(ends)}.\nTe avisaremos antes.", style = TBody, textAlign = TextAlign.Center)
+                        },
                         button = "Ir a mi inicio",
                         onBack = { Store.loginAs(step.userId) },
                         onClick = { Store.loginAs(step.userId) }
@@ -263,7 +341,14 @@ fun AuthFlow() {
                     AuthStep.TenantConfirm -> invite?.let { ok ->
                         TenantConfirmStep(version, ok, onBack = { nav.backTo(AuthStep.TenantKey) }) {
                             val d = draft ?: return@TenantConfirmStep
-                            ui.busy { nav.go(AuthStep.TenantDone(Store.signUpTenant(d, ok.inv))) }
+                            ui.busy {
+                                try {
+                                    nav.go(AuthStep.TenantDone(Store.joinWithKey(d, ok)))
+                                } catch (e: Cloud.Failure) {
+                                    ui.error(Store.keyFail(e.code).toast)
+                                    nav.backTo(AuthStep.TenantKey)
+                                }
+                            }
                         }
                     }
                     is AuthStep.TenantDone -> invite?.let { ok ->
@@ -349,7 +434,10 @@ private fun WelcomeStep(version: String, onLogin: () -> Unit, onGoogle: () -> Un
 }
 
 @Composable
-private fun LoginStep(ui: AuthUi, nav: AuthNav, version: String, prefill: MutableState<String?>, onGoogle: () -> Unit) {
+private fun LoginStep(
+    ui: AuthUi, nav: AuthNav, version: String, prefill: MutableState<String?>, onGoogle: () -> Unit,
+    onNeedsRole: (SignUpDraft) -> Unit
+) {
     var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var rememberMe by rememberSaveable { mutableStateOf(false) }
@@ -371,14 +459,16 @@ private fun LoginStep(ui: AuthUi, nav: AuthNav, version: String, prefill: Mutabl
         if (canSubmit) {
             focus.clearFocus()
             ui.busy {
-                val r = Store.login(username, password, rememberMe)
-                if (r != null) {
-                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    if (r.startsWith("No encontramos") || r.startsWith("La contraseña")) {
+                when (val r = Store.signIn(username, password, rememberMe)) {
+                    Store.SignIn.Ok -> Unit
+                    Store.SignIn.WrongCredentials -> {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         failed = true
                         shakes++
                         ui.error("Usuario o contraseña no es correcto")
-                    } else ui.error(r)
+                    }
+                    is Store.SignIn.NeedsRole -> onNeedsRole(r.draft)
+                    is Store.SignIn.Error -> ui.error(r.message)
                 }
             }
         }
@@ -463,7 +553,7 @@ private fun ForgotChooseStep(nav: AuthNav, version: String) {
 }
 
 @Composable
-private fun ForgotEnterStep(ui: AuthUi, nav: AuthNav, version: String, byEmail: Boolean, sendCode: (String) -> Unit) {
+private fun ForgotEnterStep(ui: AuthUi, nav: AuthNav, version: String, byEmail: Boolean, sendCode: (String) -> Boolean) {
     var value by rememberSaveable { mutableStateOf("") }
     var err by rememberSaveable { mutableStateOf<String?>(null) }
     val focus = LocalFocusManager.current
@@ -472,15 +562,23 @@ private fun ForgotEnterStep(ui: AuthUi, nav: AuthNav, version: String, byEmail: 
         if (valid && err == null) {
             focus.clearFocus()
             ui.busy {
-                val u = if (byEmail) Store.accountByEmail(value) else Store.accountByPhone(value)
-                if (u == null) {
-                    val msg = if (byEmail) "No encontramos una cuenta con este correo" else "No encontramos una cuenta con este celular"
-                    err = msg
-                    ui.error(msg)
-                } else {
+                val notFound = if (byEmail) "No encontramos una cuenta con este correo" else "No encontramos una cuenta con este celular"
+                val local = if (byEmail) Store.accountByEmail(value) else Store.accountByPhone(value)
+                if (local != null && !Store.isCloudId(local.id)) {
+                    // Cuenta de prueba del teléfono: el código llega como notificación.
                     val dest = if (byEmail) value.trim().lowercase() else authPhone(value)
                     sendCode(dest)
-                    nav.go(AuthStep.Otp(dest, u.id))
+                    nav.go(AuthStep.Otp(dest, local.id))
+                    return@busy
+                }
+                val email = if (byEmail) value.trim().lowercase() else null
+                val phone = if (byEmail) null else value
+                try {
+                    // Supabase envía el código al correo (por celular, al correo de esa cuenta).
+                    val dest = Cloud.recoverSend(email, phone)
+                    nav.go(AuthStep.Otp(dest, "", email, phone))
+                } catch (e: Cloud.Failure) {
+                    if (e.code == "not_found") { err = notFound; ui.error(notFound) } else ui.error(Cloud.message(e))
                 }
             }
         }
@@ -511,7 +609,7 @@ private fun ForgotEnterStep(ui: AuthUi, nav: AuthNav, version: String, byEmail: 
 @Composable
 private fun OtpStep(
     ui: AuthUi, nav: AuthNav, version: String, step: AuthStep.Otp,
-    currentCode: () -> String, resend: () -> Unit, onVerified: () -> Unit
+    check: suspend (String) -> Boolean, resend: () -> Unit, onVerified: () -> Unit
 ) {
     var code by rememberSaveable { mutableStateOf("") }
     var invalid by rememberSaveable { mutableStateOf(false) }
@@ -520,7 +618,7 @@ private fun OtpStep(
     val canVerify = code.length == 6 && !invalid
     val verify: () -> Unit = {
         if (canVerify) ui.busy {
-            if (code == currentCode()) onVerified()
+            if (check(code)) onVerified()
             else {
                 invalid = true
                 shakes++
@@ -563,7 +661,7 @@ private fun OtpStep(
 }
 
 @Composable
-private fun NewPasswordStep(ui: AuthUi, version: String, onBack: () -> Unit, onSave: (String) -> Unit) {
+private fun NewPasswordStep(ui: AuthUi, version: String, onBack: () -> Unit, onSave: suspend (String) -> Unit) {
     var p1 by rememberSaveable { mutableStateOf("") }
     var p2 by rememberSaveable { mutableStateOf("") }
     var err1 by rememberSaveable { mutableStateOf<String?>(null) }
@@ -573,7 +671,7 @@ private fun NewPasswordStep(ui: AuthUi, version: String, onBack: () -> Unit, onS
     val submit: () -> Unit = {
         if (can) {
             when {
-                p1.length < 4 -> err1 = "Usa al menos 4 caracteres"
+                p1.length < 8 || p1.none { it.isDigit() } -> err1 = "Usa 8 caracteres o más y un número"
                 p1 != p2 -> { err2 = "Las contraseñas no coinciden"; ui.error("Las contraseñas no coinciden") }
                 else -> { focus.clearFocus(); ui.busy { onSave(p1) } }
             }

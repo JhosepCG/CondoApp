@@ -491,8 +491,12 @@ fun AdminPersonas(user: AppUser, onBack: (() -> Unit)? = null) {
         }
         SectionTitle("Personas", trailing = "${admins.size + tenants.size} cuentas")
         TenantSearch(c.id)
+        // Propiedad en la base de datos: el inquilino se vincula con una llave de 6 dígitos.
+        val cloud = Store.isCloudId(c.id)
         if (!showForm) {
-            PrimaryButton("Agregar persona", { showForm = true }, Modifier.fillMaxWidth(), icon = Ic.UserPlus)
+            PrimaryButton(if (cloud) "Generar llave para inquilino" else "Agregar persona", { showForm = true }, Modifier.fillMaxWidth(), icon = if (cloud) Ic.Lock else Ic.UserPlus)
+        } else if (cloud) {
+            KeyGenerator(c) { showForm = false }
         } else {
             AccountForm(fixedClient = c, allowedRoles = listOf(Role.ADMIN, Role.TENANT), onDone = { showForm = false })
         }

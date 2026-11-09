@@ -89,6 +89,8 @@ internal class OwnerSetup {
     val custom = mutableStateListOf<String>()
     val serviceUnits = mutableStateMapOf<String, Set<String>>()
     var annual by mutableStateOf(false)
+    /** Propiedad ya guardada en la base de datos (para no duplicarla si reintenta el pago). */
+    var cloudClientId: String? = null
 
     /** Solo las unidades que el propietario indicó (los pisos en 0 no aparecen). */
     val units: List<String>
@@ -164,11 +166,28 @@ internal fun SignUpStep(ui: AuthUi, nav: AuthNav, version: String, onCreated: (S
         }
         focus.clearFocus()
         ui.busy {
-            when (val r = Store.checkNewAccount(e, phone)) {
-                null -> onCreated(SignUpDraft(name.trim(), e, pass, phone))
-                else -> {
-                    if (r.contains("correo")) emailErr = r else phoneErr = r
-                    ui.error(r)
+            val draft = SignUpDraft(name.trim(), e, pass, phone)
+            // Volvió desde «¿Cómo usarás Convive?»: la cuenta ya existe, sigue con el rol.
+            if (Cloud.session?.email.equals(e, ignoreCase = true)) { onCreated(draft); return@busy }
+            val taken = Store.checkNewAccount(e, phone) ?: try {
+                Cloud.signupCheck(e, phone)
+            } catch (x: Cloud.Failure) {
+                null // si la consulta falla, Supabase igual rechaza correos repetidos al crear la cuenta
+            }
+            if (taken != null) {
+                if (taken.contains("correo")) emailErr = taken else phoneErr = taken
+                ui.error(taken)
+                return@busy
+            }
+            try {
+                if (Cloud.signUp(e, pass, name.trim(), phone)) onCreated(draft)
+                else ui.info("Te enviamos un correo para confirmar tu cuenta. Confírmalo y luego inicia sesión.")
+            } catch (x: Cloud.Failure) {
+                when (x.code) {
+                    "user_already_exists", "email_exists" -> { emailErr = "Este correo ya tiene una cuenta."; ui.error("Este correo ya tiene una cuenta.") }
+                    "weak_password" -> { passErr = "Usa una contraseña más segura"; ui.error("Usa una contraseña más segura") }
+                    "email_address_invalid" -> { emailErr = "Revisa tu correo electrónico"; ui.error("Revisa tu correo electrónico") }
+                    else -> ui.error(Cloud.message(x))
                 }
             }
         }
@@ -853,15 +872,15 @@ internal fun TenantKeyStep(ui: AuthUi, version: String, onBack: () -> Unit, onVa
     var showDemo by rememberSaveable { mutableStateOf(false) }
     var shakes by remember { mutableIntStateOf(0) }
     val haptic = LocalHapticFeedback.current
-    val canValidate = code.length == 6 && !invalid && left > 0
+    val canValidate = code.length == 6 && !invalid && left != 0
     val validate: () -> Unit = {
         if (canValidate) ui.busy {
-            when (val r = Store.checkInvitation(code)) {
+            when (val r = Store.checkKey(code)) {
                 is Store.InviteCheck.Ok -> onValid(r)
                 is Store.InviteCheck.Fail -> {
                     invalid = true
                     detail = r.detail
-                    left = r.attemptsLeft
+                    if (r.attemptsLeft >= 0) left = r.attemptsLeft
                     shakes++
                     haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     ui.error(r.toast)
@@ -870,7 +889,7 @@ internal fun TenantKeyStep(ui: AuthUi, version: String, onBack: () -> Unit, onVa
         }
     }
     SheetPage(
-        version, onBack = onBack, onVersionTap = { showDemo = !showDemo }, centered = true,
+        version, onBack = onBack, onVersionTap = { if (!Cloud.signedIn) showDemo = !showDemo }, centered = true,
         below = {
             NumberPad(
                 onDigit = { d ->
@@ -891,7 +910,7 @@ internal fun TenantKeyStep(ui: AuthUi, version: String, onBack: () -> Unit, onVa
             Spacer(Modifier.height(12.dp))
             Text(detail!!, style = TBody.copy(color = Palette.Red), textAlign = TextAlign.Center)
             Spacer(Modifier.height(12.dp))
-            Text(if (left == 1) "Te queda 1 intento" else "Te quedan $left intentos", style = TBody.copy(color = AK.Label), textAlign = TextAlign.Center)
+            if (left in 0..4) Text(if (left == 1) "Te queda 1 intento" else "Te quedan $left intentos", style = TBody.copy(color = AK.Label), textAlign = TextAlign.Center)
         }
         Spacer(Modifier.height(16.dp))
         AuthButton("Validar llave", canValidate, validate)

@@ -71,6 +71,9 @@ fun AdminMyProfile(user: AppUser, onBack: () -> Unit) {
         // ---------------- Suscripción ----------------
         SectionTitle("Mi suscripción", trailing = c.plan.label.substringBefore(" ·"))
         when {
+            // Propiedad registrada desde la app: suscripción con Google Play.
+            Store.isCloudId(c.id) && isOwner -> PlaySubscriptionCard(c, user)
+
             c.plan == Plan.GRATIS -> AppCard(color = Palette.TealSoft, borderColor = Palette.TealSoft) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     IconBadge(Ic.Gift, Palette.Teal, Palette.Surface)
