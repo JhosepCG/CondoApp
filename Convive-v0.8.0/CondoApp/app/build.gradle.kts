@@ -12,8 +12,19 @@ android {
         applicationId = "pe.condoapp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
+        versionCode = 16
         versionName = "1.0"
+    }
+
+    // Firma fija para que cada APK de prueba actualice a la anterior y Google Sign-In
+    // reconozca siempre la misma huella SHA-1.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("convive-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
     }
 
     buildTypes {

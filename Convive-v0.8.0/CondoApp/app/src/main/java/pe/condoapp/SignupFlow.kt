@@ -1,5 +1,17 @@
 package pe.condoapp
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -64,22 +76,40 @@ internal class OwnerSetup {
     var name by mutableStateOf("")
     var address by mutableStateOf("")
     var reference by mutableStateOf("")
+    /** Unidades por piso. Un piso puede tener 0 (por ejemplo, el dueño vive en el 1° y alquila arriba). */
     val floors = mutableStateListOf(2, 2, 2)
+    /** Precio de cada unidad (solo dígitos) cuando no es el mismo para todas. */
     val price = mutableStateMapOf<String, String>()
+    /** Estado elegido a mano con el interruptor; si no se tocó, se deduce del precio. */
     val available = mutableStateMapOf<String, Boolean>()
     var samePrice by mutableStateOf(false)
+    /** Precio único (solo dígitos) cuando «Mismo precio para todos» está activo. */
+    var common by mutableStateOf("")
     val services = mutableStateListOf<String>()
     val custom = mutableStateListOf<String>()
     val serviceUnits = mutableStateMapOf<String, Set<String>>()
     var annual by mutableStateOf(false)
 
+    /** Solo las unidades que el propietario indicó (los pisos en 0 no aparecen). */
     val units: List<String>
         get() = floors.flatMapIndexed { f, n -> (0 until n).map { "${f + 1}° Piso ${'A' + it}" } }
 
-    fun rent(u: String): Double = price[u]?.toDoubleOrNull() ?: 0.0
+    fun priceOf(u: String): String = if (samePrice) common else price[u] ?: ""
+    fun rent(u: String): Double = priceOf(u).toDoubleOrNull() ?: 0.0
+
+    /** Disponible para alquilar = con precio, salvo que lo haya apagado (ocupada). */
+    fun isAvailable(u: String): Boolean = available[u] ?: priceOf(u).isNotEmpty()
+
+    /** Siguiente: mismo precio escrito, o al menos un precio y ninguna disponible sin precio. */
+    fun pricesReady(): Boolean {
+        val us = units
+        if (us.isEmpty()) return false
+        return if (samePrice) (common.toDoubleOrNull() ?: 0.0) > 0
+        else us.any { rent(it) > 0 } && us.none { isAvailable(it) && rent(it) <= 0 }
+    }
 
     fun specs(): List<UnitSpec> = units.map { u ->
-        UnitSpec("", u, rent(u), available[u] != false, services.filter { serviceUnits[it]?.contains(u) == true })
+        UnitSpec("", u, rent(u), isAvailable(u), services.filter { serviceUnits[it]?.contains(u) == true })
     }
 }
 
@@ -355,19 +385,22 @@ private fun StepperButton(icon: ImageVector, enabled: Boolean, onClick: () -> Un
 @Composable
 internal fun OwnerUnitsStep(o: OwnerSetup, nav: AuthNav) {
     val haptic = LocalHapticFeedback.current
+    val total = o.units.size
     WizardPage(
         2, 0.33f, "¿Cuántas unidades alquilas?", "Agrúpalas por piso; luego puedes renombrarlas.",
-        onBack = { nav.back() }, onNext = { nav.go(AuthStep.OwnerPrices) }
+        onBack = { nav.back() }, onNext = { nav.go(AuthStep.OwnerPrices) }, nextEnabled = total > 0
     ) {
         o.floors.forEachIndexed { i, n ->
             Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("${i + 1}° Piso", style = TName.copy(fontSize = 15.sp, color = Palette.Teal))
-                    Text("[$n] ${if (n == 1) "unidad" else "unidades"}", style = TSmall)
+                    Text("${i + 1}° Piso", style = TName.copy(fontSize = 15.sp, color = if (n == 0) AK.Body else Palette.Teal))
+                    Text(if (n == 0) "No alquilas este piso" else "[$n] ${if (n == 1) "unidad" else "unidades"}", style = TSmall)
                 }
-                StepperButton(AIc.Minus, n > 1 || (i == o.floors.lastIndex && o.floors.size > 1)) {
+                // Se puede bajar hasta 0; en 0, el último piso agregado se quita.
+                val canRemove = n == 0 && i == o.floors.lastIndex && o.floors.size > 1
+                StepperButton(AIc.Minus, n > 0 || canRemove) {
                     haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    if (n > 1) o.floors[i] = n - 1 else o.floors.removeAt(i)
+                    if (n > 0) o.floors[i] = n - 1 else o.floors.removeAt(i)
                 }
                 Text("$n", style = TName.copy(fontWeight = FontWeight.Medium), textAlign = TextAlign.Center, modifier = Modifier.width(40.dp))
                 StepperButton(AIc.Plus, n < 12) {
@@ -383,9 +416,13 @@ internal fun OwnerUnitsStep(o: OwnerSetup, nav: AuthNav) {
             modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(enabled = o.floors.size < 30) { o.floors.add(1) }.padding(vertical = 8.dp, horizontal = 2.dp)
         )
         Spacer(Modifier.height(20.dp))
-        Text("Así se verán - [${o.units.size}] unidades", style = TBody)
-        Spacer(Modifier.height(10.dp))
-        UnitGrid(o.units, selected = emptySet(), static = true) { }
+        if (total == 0) {
+            Text("Agrega al menos una unidad para continuar.", style = TBody)
+        } else {
+            Text("Así se verán - [$total] ${if (total == 1) "unidad" else "unidades"}", style = TBody)
+            Spacer(Modifier.height(10.dp))
+            UnitGrid(o.units, selected = emptySet(), static = true) { }
+        }
     }
 }
 
@@ -446,90 +483,130 @@ private object Thousands : VisualTransformation {
 
 @Composable
 private fun Switch2(on: Boolean, onToggle: () -> Unit) {
+    val haptic = LocalHapticFeedback.current
+    val track by animateColorAsState(if (on) Palette.Teal else Color(0xFFE5E8EE), label = "track")
+    val bias by animateFloatAsState(if (on) 1f else -1f, tween(180), label = "knob")
     Box(
-        Modifier.size(52.dp, 30.dp).clip(RoundedCornerShape(50)).background(if (on) Palette.Teal else Color(0xFFE5E7EB)).clickable(onClick = onToggle).padding(3.dp),
-        contentAlignment = if (on) Alignment.CenterEnd else Alignment.CenterStart
-    ) { Box(Modifier.size(24.dp).shadow(2.dp, CircleShape).clip(CircleShape).background(Color.White)) }
+        Modifier.size(52.dp, 28.dp).clip(RoundedCornerShape(50)).background(track)
+            .clickable { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove); onToggle() }
+            .padding(3.dp),
+        contentAlignment = androidx.compose.ui.BiasAlignment(bias, 0f)
+    ) { Box(Modifier.size(22.dp).shadow(2.dp, CircleShape).clip(CircleShape).background(Color.White)) }
+}
+
+/** Campo de precio «S/ 1,250»: solo números, borde verde al escribir, rojo si falta el precio. */
+@Composable
+private fun PriceField(
+    value: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    error: Boolean = false,
+    focusRequester: FocusRequester? = null,
+    imeAction: ImeAction = ImeAction.Next,
+    onIme: () -> Unit = {}
+) {
+    var focused by remember { mutableStateOf(false) }
+    val border by animateColorAsState(
+        when {
+            focused -> Palette.Teal
+            error -> Palette.Red
+            else -> AK.Border
+        }, label = "price-border"
+    )
+    BasicTextField(
+        value = value,
+        onValueChange = { v -> onChange(v.filter(Char::isDigit).trimStart('0').take(6)) },
+        enabled = enabled,
+        singleLine = true,
+        textStyle = TField.copy(color = if (enabled) AK.Text else AK.Placeholder),
+        cursorBrush = SolidColor(Palette.Teal),
+        visualTransformation = Thousands,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = imeAction),
+        keyboardActions = KeyboardActions(onAny = { onIme() }),
+        modifier = modifier
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
+            .onFocusChanged { focused = it.isFocused },
+        decorationBox = { inner ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .then(
+                        if (focused) Modifier.shadow(8.dp, CtlShape, ambientColor = Palette.Teal.copy(alpha = 0.25f), spotColor = Palette.Teal.copy(alpha = 0.3f))
+                        else Modifier
+                    )
+                    .background(Color.White, CtlShape)
+                    .border(if (focused) 2.dp else 1.dp, border, CtlShape)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("S/", style = TField.copy(color = if (value.isEmpty() || !enabled) AK.Placeholder else AK.Text))
+                Spacer(Modifier.width(4.dp))
+                Box(Modifier.weight(1f)) { inner() }
+            }
+        }
+    )
 }
 
 @Composable
 internal fun OwnerPricesStep(o: OwnerSetup, nav: AuthNav) {
-    var focusedUnit by remember { mutableStateOf<String?>(null) }
+    val focus = LocalFocusManager.current
+    val commonFocus = remember { FocusRequester() }
     val units = o.units
-    val ready = units.all { o.rent(it) > 0 && o.available[it] != null }
     WizardPage(
         2, 0.66f, "Precio y estado de cada uno", "Las ocupadas se completan cuando vincules al inquilino.",
-        onBack = { nav.back() }, onNext = { nav.go(AuthStep.OwnerServices) }, nextEnabled = ready
+        onBack = { nav.back() },
+        onNext = { focus.clearFocus(); nav.go(AuthStep.OwnerServices) },
+        nextEnabled = o.pricesReady()
     ) {
-        Row(
-            Modifier.fillMaxWidth().clip(CtlShape).background(AK.Soft).padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("Mismo precio para todos", style = TField, modifier = Modifier.weight(1f))
-            Switch2(o.samePrice) {
-                o.samePrice = !o.samePrice
-                if (o.samePrice) {
-                    val first = units.firstNotNullOfOrNull { o.price[it]?.takeIf { p -> p.isNotEmpty() } }
-                    if (first != null) units.forEach { o.price[it] = first }
+        // Mismo precio para todos: aparece un solo campo y el precio se copia a cada unidad.
+        Column(Modifier.fillMaxWidth().clip(CardShape).background(AK.Soft).padding(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Mismo precio para todos", style = TField, modifier = Modifier.weight(1f))
+                Switch2(o.samePrice) {
+                    if (!o.samePrice) {
+                        if (o.common.isEmpty()) o.common = units.firstNotNullOfOrNull { o.price[it]?.takeIf(String::isNotEmpty) } ?: ""
+                        o.samePrice = true
+                    } else {
+                        // Al volver a individual, cada unidad parte del precio común para ajustarlo.
+                        if (o.common.isNotEmpty()) units.forEach { if (o.price[it].isNullOrEmpty()) o.price[it] = o.common }
+                        o.samePrice = false
+                    }
+                }
+            }
+            AnimatedVisibility(o.samePrice, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                Column {
+                    Spacer(Modifier.height(12.dp))
+                    PriceField(
+                        o.common, { o.common = it }, Modifier.fillMaxWidth(),
+                        focusRequester = commonFocus, imeAction = ImeAction.Done, onIme = { focus.clearFocus() }
+                    )
+                    LaunchedEffect(Unit) { delay(120); runCatching { commonFocus.requestFocus() } }
                 }
             }
         }
         Spacer(Modifier.height(12.dp))
-        units.forEach { u ->
-            val active = focusedUnit == u
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(CardShape)
-                    .background(if (active) AK.Tint else Color.White)
-                    .border(if (active) 2.dp else 1.dp, if (active) Palette.Teal else AK.Border, CardShape)
-                    .padding(12.dp)
-            ) {
+        HorizontalDivider(thickness = 1.dp, color = AK.Border)
+        units.forEachIndexed { i, u ->
+            key(u) {
+                Spacer(Modifier.height(12.dp))
+                Text(u, style = TLabel)
+                Spacer(Modifier.height(6.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(u, style = TName.copy(fontSize = 15.sp), modifier = Modifier.weight(1f))
-                    BasicTextField(
-                        value = o.price[u] ?: "",
-                        onValueChange = { v ->
-                            val d = v.filter(Char::isDigit).take(6)
-                            if (o.samePrice) units.forEach { o.price[it] = d } else o.price[u] = d
-                        },
-                        singleLine = true,
-                        textStyle = TField.copy(fontWeight = FontWeight.SemiBold, color = AK.Title),
-                        cursorBrush = SolidColor(Palette.Teal),
-                        visualTransformation = Thousands,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                        modifier = Modifier.width(92.dp).onFocusChanged { if (it.isFocused) focusedUnit = u else if (focusedUnit == u) focusedUnit = null },
-                        decorationBox = { inner ->
-                            Row(
-                                Modifier.fillMaxWidth().height(38.dp).clip(RoundedCornerShape(10.dp)).background(Color.White)
-                                    .border(1.dp, if (active) Palette.Teal else AK.Border, RoundedCornerShape(10.dp)).padding(horizontal = 10.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("S/.", style = TField.copy(color = AK.Placeholder))
-                                Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                                    if ((o.price[u] ?: "").isEmpty()) Text("0", style = TField.copy(color = AK.Placeholder))
-                                    inner()
-                                }
-                            }
-                        }
+                    PriceField(
+                        o.priceOf(u), { o.price[u] = it }, Modifier.weight(1f),
+                        enabled = !o.samePrice,
+                        error = !o.samePrice && o.available[u] == true && o.rent(u) <= 0,
+                        imeAction = if (i == units.lastIndex) ImeAction.Done else ImeAction.Next,
+                        onIme = { if (i == units.lastIndex) focus.clearFocus() else focus.moveFocus(FocusDirection.Down) }
                     )
+                    Spacer(Modifier.width(12.dp))
+                    Switch2(o.isAvailable(u)) { o.available[u] = !o.isAvailable(u) }
                 }
                 Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(true to "Disponible", false to "Ocupado").forEach { (value, label) ->
-                        val on = o.available[u] == value
-                        val shape = RoundedCornerShape(50)
-                        Box(
-                            Modifier.weight(1f).height(32.dp).clip(shape)
-                                .background(if (on) AK.Title else Color.White)
-                                .then(if (on) Modifier else Modifier.border(1.dp, AK.Border, shape))
-                                .clickable { o.available[u] = value },
-                            contentAlignment = Alignment.Center
-                        ) { Text(label, style = TSmall.copy(color = if (on) Color.White else AK.Title)) }
-                    }
-                }
+                HorizontalDivider(thickness = 1.dp, color = AK.Border)
             }
-            Spacer(Modifier.height(12.dp))
         }
     }
 }
@@ -658,7 +735,7 @@ private fun soles(v: Double): String = "%,.0f".format(java.util.Locale.US, v)
 @Composable
 internal fun OwnerReviewStep(o: OwnerSetup, nav: AuthNav) {
     val units = o.units
-    val free = units.count { o.available[it] != false }
+    val free = units.count { o.isAvailable(it) }
     val rents = units.map { o.rent(it) }.filter { it > 0 }
     val prices = when {
         rents.isEmpty() -> "Sin precio"
@@ -676,7 +753,7 @@ internal fun OwnerReviewStep(o: OwnerSetup, nav: AuthNav) {
             }
             Text(o.address.trim(), style = TSmall)
             Spacer(Modifier.height(10.dp))
-            ReviewRow("Unidades", "${units.size} departamentos - $free disponibles") { nav.backTo(AuthStep.OwnerUnits) }
+            ReviewRow("Unidades", "${units.size} ${if (units.size == 1) "departamento" else "departamentos"} - $free ${if (free == 1) "disponible" else "disponibles"}") { nav.backTo(AuthStep.OwnerUnits) }
             ReviewRow("Precios", prices) { nav.backTo(AuthStep.OwnerPrices) }
             ReviewRow("Servicios que ofreces", "$svc.") { nav.backTo(AuthStep.OwnerServices) }
         }
